@@ -1,0 +1,3528 @@
+blueprint:
+  name: WLED Holiday, Weather & Event Scheduler v6.4.1 Display Activation Windows
+  description: >
+    Display activation windows with independent fixed, solar, illuminance, or irradiance boundaries. The scheduler decides WHEN and WHICH event is active;
+    native Home Assistant action builders decide WHAT every WLED, smart light, scene, switch, script,
+    relay, or other device does. No primary WLED is required. Every user-facing setting includes a
+    short plain-English explanation. Start with Core schedule, create/select the required Text helper,
+    then configure Startup, Event, and Shutdown actions. Testing is isolated under Testing & diagnostics.
+  domain: automation
+  homeassistant:
+    min_version: 2025.10.0
+
+  input:
+    help:
+      name: Setup guide & help
+      icon: mdi:book-open-page-variant
+      collapsed: true
+      description: >
+        QUICK START — 1) Create one Text helper under Settings > Devices & services > Helpers and
+        select it in Display activation schedule. 2) Set your timing. 3) Under Startup / power-on
+        actions, add shared smart-plug/relay power steps. If WLED needs time to boot, use + Add action
+        to place a Delay after power-on; start with 30 seconds when unsure. If the lights come on
+        showing WLED's boot/default preset instead of the selected scheduler event, the delay is
+        missing or too short. Event actions run only after the full Startup sequence finishes.
+        4) For each normal, holiday, weather, seasonal, or custom event, use + Add action to turn on
+        each WLED and then Select option on that WLED's Preset or Playlist entity. 5) Put shared
+        turn-off/power-down steps under Shutdown / power-off actions. 6) To test, choose a TEST mode
+        under Testing & diagnostics, Save, then click Run actions once. Use Startup + selected event
+        to test the complete power, boot-delay, and preset sequence. If a test turns devices on
+        outside their schedule, run Shutdown actions only before returning Test mode to Automatic —
+        Normal scheduler operation. Automatic chooses the winning event; Normal/default is only the
+        fallback event when no higher-priority rule wins.
+      input:
+        help_read_only_note:
+          name: Setup guide note
+          description: >
+            This switch does nothing and is intentionally optional. It only gives Home Assistant a
+            real input so this collapsed help section can render. Leave it off.
+          default: false
+          selector:
+            boolean:
+
+    core:
+      name: Display activation schedule
+      icon: mdi:clock-outline
+      collapsed: true
+      description: >
+        Configure up to three daily display activation periods. Each period has its own start and end
+        method: fixed time, sunrise, sunset, illuminance, or irradiance. The display is active whenever
+        any enabled period is active. Use different start and end thresholds to prevent rapid cycling.
+      input:
+        scheduler_state_helper:
+          name: Scheduler memory helper
+          description: Required. Select a Text helper used to remember the active event.
+          default: ''
+          selector:
+            entity:
+              domain: input_text
+        illuminance_sensor:
+          name: Illuminance sensor
+          description: Optional unless an illuminance start or end method is selected.
+          default: ''
+          selector:
+            entity:
+              domain: sensor
+              device_class: illuminance
+        irradiance_sensor:
+          name: Irradiance sensor
+          description: Optional unless an irradiance start or end method is selected. Normally reports W/m².
+          default: ''
+          selector:
+            entity:
+              domain: sensor
+        period_1_enabled:
+          name: Display activation period 1 - enable
+          default: true
+          selector:
+            boolean:
+        period_1_start_mode:
+          name: Display activation period 1 - start method
+          default: sunset
+          selector:
+            select:
+              options:
+                - label: Fixed time
+                  value: fixed
+                - label: Sunrise with offset
+                  value: sunrise
+                - label: Sunset with offset
+                  value: sunset
+                - label: Illuminance at or below threshold
+                  value: illuminance
+                - label: Irradiance at or below threshold
+                  value: irradiance
+        period_1_start_time:
+          name: Display activation period 1 - fixed start time
+          default: '17:00:00'
+          selector:
+            time:
+        period_1_start_offset:
+          name: Display activation period 1 - start solar offset
+          default: -15
+          selector:
+            number: {min: -360, max: 360, step: 5, unit_of_measurement: min}
+        period_1_start_lux:
+          name: Display activation period 1 - start illuminance threshold
+          default: 500
+          selector:
+            number: {min: 0, max: 100000, step: 10, unit_of_measurement: lx}
+        period_1_start_irradiance:
+          name: Display activation period 1 - start irradiance threshold
+          default: 50
+          selector:
+            number: {min: 0, max: 1500, step: 5, unit_of_measurement: W/m²}
+        period_1_end_mode:
+          name: Display activation period 1 - end method
+          default: fixed
+          selector:
+            select:
+              options:
+                - label: Fixed time
+                  value: fixed
+                - label: Sunrise with offset
+                  value: sunrise
+                - label: Sunset with offset
+                  value: sunset
+                - label: Illuminance below threshold
+                  value: illuminance
+                - label: Irradiance below threshold
+                  value: irradiance
+        period_1_end_time:
+          name: Display activation period 1 - fixed end time
+          default: '23:00:00'
+          selector:
+            time:
+        period_1_end_offset:
+          name: Display activation period 1 - end solar offset
+          default: 0
+          selector:
+            number: {min: -360, max: 360, step: 5, unit_of_measurement: min}
+        period_1_end_lux:
+          name: Display activation period 1 - end illuminance threshold
+          description: Keep this above the start threshold to provide hysteresis.
+          default: 750
+          selector:
+            number: {min: 0, max: 100000, step: 10, unit_of_measurement: lx}
+        period_1_end_irradiance:
+          name: Display activation period 1 - end irradiance threshold
+          description: Keep this above the start threshold to provide hysteresis.
+          default: 100
+          selector:
+            number: {min: 0, max: 1500, step: 5, unit_of_measurement: W/m²}
+        period_2_enabled:
+          name: Display activation period 2 - enable
+          default: false
+          selector:
+            boolean:
+        period_2_start_mode:
+          name: Display activation period 2 - start method
+          default: fixed
+          selector:
+            select:
+              options:
+                - label: Fixed time
+                  value: fixed
+                - label: Sunrise with offset
+                  value: sunrise
+                - label: Sunset with offset
+                  value: sunset
+                - label: Illuminance at or below threshold
+                  value: illuminance
+                - label: Irradiance at or below threshold
+                  value: irradiance
+        period_2_start_time:
+          name: Display activation period 2 - fixed start time
+          default: '05:30:00'
+          selector:
+            time:
+        period_2_start_offset:
+          name: Display activation period 2 - start solar offset
+          default: -15
+          selector:
+            number: {min: -360, max: 360, step: 5, unit_of_measurement: min}
+        period_2_start_lux:
+          name: Display activation period 2 - start illuminance threshold
+          default: 500
+          selector:
+            number: {min: 0, max: 100000, step: 10, unit_of_measurement: lx}
+        period_2_start_irradiance:
+          name: Display activation period 2 - start irradiance threshold
+          default: 50
+          selector:
+            number: {min: 0, max: 1500, step: 5, unit_of_measurement: W/m²}
+        period_2_end_mode:
+          name: Display activation period 2 - end method
+          default: fixed
+          selector:
+            select:
+              options:
+                - label: Fixed time
+                  value: fixed
+                - label: Sunrise with offset
+                  value: sunrise
+                - label: Sunset with offset
+                  value: sunset
+                - label: Illuminance below threshold
+                  value: illuminance
+                - label: Irradiance below threshold
+                  value: irradiance
+        period_2_end_time:
+          name: Display activation period 2 - fixed end time
+          default: '08:00:00'
+          selector:
+            time:
+        period_2_end_offset:
+          name: Display activation period 2 - end solar offset
+          default: 0
+          selector:
+            number: {min: -360, max: 360, step: 5, unit_of_measurement: min}
+        period_2_end_lux:
+          name: Display activation period 2 - end illuminance threshold
+          description: Keep this above the start threshold to provide hysteresis.
+          default: 750
+          selector:
+            number: {min: 0, max: 100000, step: 10, unit_of_measurement: lx}
+        period_2_end_irradiance:
+          name: Display activation period 2 - end irradiance threshold
+          description: Keep this above the start threshold to provide hysteresis.
+          default: 100
+          selector:
+            number: {min: 0, max: 1500, step: 5, unit_of_measurement: W/m²}
+        period_3_enabled:
+          name: Display activation period 3 - enable
+          default: false
+          selector:
+            boolean:
+        period_3_start_mode:
+          name: Display activation period 3 - start method
+          default: fixed
+          selector:
+            select:
+              options:
+                - label: Fixed time
+                  value: fixed
+                - label: Sunrise with offset
+                  value: sunrise
+                - label: Sunset with offset
+                  value: sunset
+                - label: Illuminance at or below threshold
+                  value: illuminance
+                - label: Irradiance at or below threshold
+                  value: irradiance
+        period_3_start_time:
+          name: Display activation period 3 - fixed start time
+          default: '12:00:00'
+          selector:
+            time:
+        period_3_start_offset:
+          name: Display activation period 3 - start solar offset
+          default: -15
+          selector:
+            number: {min: -360, max: 360, step: 5, unit_of_measurement: min}
+        period_3_start_lux:
+          name: Display activation period 3 - start illuminance threshold
+          default: 500
+          selector:
+            number: {min: 0, max: 100000, step: 10, unit_of_measurement: lx}
+        period_3_start_irradiance:
+          name: Display activation period 3 - start irradiance threshold
+          default: 50
+          selector:
+            number: {min: 0, max: 1500, step: 5, unit_of_measurement: W/m²}
+        period_3_end_mode:
+          name: Display activation period 3 - end method
+          default: fixed
+          selector:
+            select:
+              options:
+                - label: Fixed time
+                  value: fixed
+                - label: Sunrise with offset
+                  value: sunrise
+                - label: Sunset with offset
+                  value: sunset
+                - label: Illuminance below threshold
+                  value: illuminance
+                - label: Irradiance below threshold
+                  value: irradiance
+        period_3_end_time:
+          name: Display activation period 3 - fixed end time
+          default: '13:00:00'
+          selector:
+            time:
+        period_3_end_offset:
+          name: Display activation period 3 - end solar offset
+          default: 0
+          selector:
+            number: {min: -360, max: 360, step: 5, unit_of_measurement: min}
+        period_3_end_lux:
+          name: Display activation period 3 - end illuminance threshold
+          description: Keep this above the start threshold to provide hysteresis.
+          default: 750
+          selector:
+            number: {min: 0, max: 100000, step: 10, unit_of_measurement: lx}
+        period_3_end_irradiance:
+          name: Display activation period 3 - end irradiance threshold
+          description: Keep this above the start threshold to provide hysteresis.
+          default: 100
+          selector:
+            number: {min: 0, max: 1500, step: 5, unit_of_measurement: W/m²}
+
+    lifecycle:
+      name: Power, startup & shutdown
+      icon: mdi:power-plug
+      collapsed: true
+      description: >
+        Shared lifecycle actions. Startup runs when the scheduler changes from OFF to active and is
+        reapplied at a display-window start or after Home Assistant starts while the schedule is
+        active. Shutdown runs when the scheduler changes from active to OFF. Put every smart plug,
+        relay, delay, or shared power step here; no one-to-one WLED/power-supply pairing is required.
+      input:
+        startup_actions:
+          name: Startup / power-on actions
+          description: >
+            Runs when the scheduler transitions from OFF to active and is also reapplied at a
+            display-window start or after Home Assistant starts while the schedule is active. Actions
+            run in order. If a smart plug or relay powers WLED, add that power-on action first, then
+            use + Add action to add a Delay so WLED can finish booting; start with 30 seconds when
+            unsure. If the lights power on with WLED's boot/default preset instead of the scheduler's
+            selected event, the delay is missing or too short. The selected event actions run only
+            after this entire Startup sequence finishes.
+          default: []
+          selector:
+            action:
+        periodic_reapply:
+          name: Reapply active event periodically
+          description: >
+            Optional recovery for a WLED that reboots, ignores the first preset command, or changes
+            to its own boot preset while the display window is active. This reruns only the current
+            event actions on a clock-aligned interval (for example every 15 minutes runs at :00, :15,
+            :30 and :45); it does not rerun Startup actions, power actions, or a Startup boot delay.
+            Every 15 minutes is a useful safety net for ordinary WLED preset-selection actions. Leave
+            this at Never if event actions include notifications, media, or anything else that should
+            not repeat.
+          default: "0"
+          selector:
+            select:
+              options:
+                - label: Never
+                  value: "0"
+                - label: Every 15 minutes
+                  value: "15"
+                - label: Every 30 minutes
+                  value: "30"
+                - label: Every 60 minutes
+                  value: "60"
+        shutdown_actions:
+          name: Shutdown / power-off actions
+          description: >
+            Runs once when the scheduler transitions from an active event to OFF. Add WLED turn-off
+            actions, delays, then smart plug or relay shutdown actions in the order you want.
+          default: []
+          selector:
+            action:
+    conditions:
+      name: Optional extra conditions
+      icon: mdi:filter-check-outline
+      collapsed: true
+      description: >
+        Optional safety or lifestyle rules added on top of the scheduler, such as someone being home,
+        Vacation Mode being off, or a helper being enabled. Most users can leave this section closed.
+      input:
+        additional_conditions:
+          name: Additional conditions
+          description: >
+            Optional. Most users should leave this empty. Add a condition only if another rule must
+            also be true before automatic scheduling may change anything, such as someone being home
+            or Vacation Mode being off. Tests bypass these conditions.
+          default: []
+          selector:
+            condition:
+
+    weather:
+      name: Weather rules
+      icon: mdi:weather-partly-rainy
+      collapsed: true
+      description: >
+        Optional rain, snow, heat, and freeze event rules. Weather can compete with holidays inside the
+        normal schedule or optionally wake lighting during allowed weather override hours.
+      input:
+        weather_enabled:
+          name: Enable weather rules
+          description: >
+            Turns weather-based event selection on or off. If off, rain, snow, heat, and freeze actions are
+            ignored.
+          default: true
+          selector:
+            boolean:
+        weather_entity:
+          name: Weather entity
+          description: >
+            Select the Home Assistant weather entity whose hourly forecast should drive weather events.
+          default: ''
+          selector:
+            entity:
+              domain: weather
+        weather_priority:
+          name: Priority when weather and a holiday both match
+          description: >
+            When both a holiday/custom event and weather match, choose which one wins.
+          default: weather
+          selector:
+            select:
+              options:
+                - label: Weather wins
+                  value: weather
+                - label: Holiday / custom event wins
+                  value: calendar
+        forecast_hours:
+          name: Rain/snow look-ahead
+          description: >
+            How many upcoming hourly forecast entries to inspect for rain or snow. This is look-ahead, not
+            how often the scheduler checks: the scheduler reevaluates every minute using the provider's
+            latest hourly data. A value of 1 checks only the nearest hourly forecast block and usually reacts
+            about 0–60 minutes before that block. A value of 3 can react almost three hours early. Forecast
+            precision and update timing still depend on the selected weather provider.
+          default: 6
+          selector:
+            number:
+              min: 1
+              max: 24
+              step: 1
+              unit_of_measurement: hours
+        weather_outside_schedule_enabled:
+          name: Allow weather to activate outside the normal schedule
+          description: >
+            When enabled, matching weather may activate lighting even when the normal schedule is off, but
+            only during the allowed override hours.
+          default: false
+          selector:
+            boolean:
+        weather_override_start_time:
+          name: Weather activation — earliest start
+          description: >
+            Earliest time weather is allowed to wake the lighting outside the normal schedule.
+          default: '08:00:00'
+          selector:
+            time:
+        weather_override_end_time:
+          name: Weather activation — latest end
+          description: >
+            Latest time weather is allowed to keep lighting active outside the normal schedule.
+          default: '22:00:00'
+          selector:
+            time:
+        rain_actions:
+          name: Rain actions
+          description: >
+            Use + Add action to define exactly what should happen for this event. Add as many WLED
+            controllers, regular lights, scenes, switches, scripts, or other Home Assistant actions as
+            you need. For WLED, add Turn on, then add Select option. Choose that WLED's Preset or Playlist
+            entity, such as select.dig_uno_holidays_preset; Home Assistant then shows its available options. Each WLED may use a different preset, playlist, or native effect.
+            Leaving this empty disables this event.
+          default: []
+          selector:
+            action:
+        snow_actions:
+          name: Snow actions
+          description: >
+            Use + Add action to define exactly what should happen for this event. Add as many WLED
+            controllers, regular lights, scenes, switches, scripts, or other Home Assistant actions as
+            you need. For WLED, add Turn on, then add Select option. Choose that WLED's Preset or Playlist
+            entity, such as select.dig_uno_holidays_preset; Home Assistant then shows its available options. Each WLED may use a different preset, playlist, or native effect.
+            Leaving this empty disables this event.
+          default: []
+          selector:
+            action:
+        heat_threshold:
+          name: Hot temperature threshold
+          description: >
+            If any checked forecast temperature reaches or exceeds this value, the Heat event may become
+            active.
+          default: 80
+          selector:
+            number:
+              min: -40
+              max: 130
+              step: 1
+              unit_of_measurement: °
+        heat_actions:
+          name: Heat actions
+          description: >
+            Use + Add action to define exactly what should happen for this event. Add as many WLED
+            controllers, regular lights, scenes, switches, scripts, or other Home Assistant actions as
+            you need. For WLED, add Turn on, then add Select option. Choose that WLED's Preset or Playlist
+            entity, such as select.dig_uno_holidays_preset; Home Assistant then shows its available options. Each WLED may use a different preset, playlist, or native effect.
+            Leaving this empty disables this event.
+          default: []
+          selector:
+            action:
+        freeze_threshold:
+          name: Cold temperature threshold
+          description: >
+            If any checked forecast temperature reaches or falls below this value, the Freeze event may
+            become active.
+          default: 32
+          selector:
+            number:
+              min: -40
+              max: 80
+              step: 1
+              unit_of_measurement: °
+        freeze_actions:
+          name: Freeze actions
+          description: >
+            Use + Add action to define exactly what should happen for this event. Add as many WLED
+            controllers, regular lights, scenes, switches, scripts, or other Home Assistant actions as
+            you need. For WLED, add Turn on, then add Select option. Choose that WLED's Preset or Playlist
+            entity, such as select.dig_uno_holidays_preset; Home Assistant then shows its available options. Each WLED may use a different preset, playlist, or native effect.
+            Leaving this empty disables this event.
+          default: []
+          selector:
+            action:
+    defaults:
+      name: Normal & seasonal actions
+      icon: mdi:theme-light-dark
+      collapsed: true
+      description: >
+        Normal/default runs when no higher-priority event matches. Seasonal actions can optionally
+        replace Normal during spring, summer, fall, or winter.
+      input:
+        normal_actions:
+          name: Normal/default actions
+          description: >
+            Runs when the scheduler is active and no holiday, custom event, weather rule, or enabled
+            seasonal rule wins.
+          default: []
+          selector:
+            action:
+        seasonal_defaults_enabled:
+          name: Enable seasonal defaults
+          description: >
+            When enabled, spring, summer, fall, or winter actions can replace Normal when no higher-priority
+            event wins.
+          default: false
+          selector:
+            boolean:
+        spring_actions:
+          name: Spring actions
+          description: >
+            Use + Add action to define exactly what should happen for this event. Add as many WLED
+            controllers, regular lights, scenes, switches, scripts, or other Home Assistant actions as
+            you need. For WLED, add Turn on, then add Select option. Choose that WLED's Preset or Playlist
+            entity, such as select.dig_uno_holidays_preset; Home Assistant then shows its available options. Each WLED may use a different preset, playlist, or native effect.
+            Leaving this empty disables this event.
+          default: []
+          selector:
+            action:
+        summer_actions:
+          name: Summer actions
+          description: >
+            Use + Add action to define exactly what should happen for this event. Add as many WLED
+            controllers, regular lights, scenes, switches, scripts, or other Home Assistant actions as
+            you need. For WLED, add Turn on, then add Select option. Choose that WLED's Preset or Playlist
+            entity, such as select.dig_uno_holidays_preset; Home Assistant then shows its available options. Each WLED may use a different preset, playlist, or native effect.
+            Leaving this empty disables this event.
+          default: []
+          selector:
+            action:
+        fall_actions:
+          name: Fall actions
+          description: >
+            Use + Add action to define exactly what should happen for this event. Add as many WLED
+            controllers, regular lights, scenes, switches, scripts, or other Home Assistant actions as
+            you need. For WLED, add Turn on, then add Select option. Choose that WLED's Preset or Playlist
+            entity, such as select.dig_uno_holidays_preset; Home Assistant then shows its available options. Each WLED may use a different preset, playlist, or native effect.
+            Leaving this empty disables this event.
+          default: []
+          selector:
+            action:
+        winter_actions:
+          name: Winter actions
+          description: >
+            Use + Add action to define exactly what should happen for this event. Add as many WLED
+            controllers, regular lights, scenes, switches, scripts, or other Home Assistant actions as
+            you need. For WLED, add Turn on, then add Select option. Choose that WLED's Preset or Playlist
+            entity, such as select.dig_uno_holidays_preset; Home Assistant then shows its available options. Each WLED may use a different preset, playlist, or native effect.
+            Leaving this empty disables this event.
+          default: []
+          selector:
+            action:
+    popular_holidays:
+      name: Popular & U.S. holidays
+      icon: mdi:calendar-star
+      collapsed: true
+      description: >
+        Familiar holidays kept visible for discovery. Leaving a holiday's action list empty disables it.
+      input:
+        new_years_day_before:
+          name: New Year's Day — days before
+          description: >
+            Start New Year's Day this many days before its actual date. Set 0 to start on the holiday
+            itself.
+          default: 0
+          selector:
+            number:
+              min: 0
+              max: 60
+              step: 1
+              mode: slider
+        new_years_day_after:
+          name: New Year's Day — days after
+          description: >
+            Keep New Year's Day active this many days after its actual date. Set 0 to stop after the holiday
+            date.
+          default: 0
+          selector:
+            number:
+              min: 0
+              max: 60
+              step: 1
+              mode: slider
+        new_years_day_actions:
+          name: New Year's Day actions
+          description: >
+            Use + Add action to define exactly what should happen for this event. Add as many WLED
+            controllers, regular lights, scenes, switches, scripts, or other Home Assistant actions as
+            you need. For WLED, add Turn on, then add Select option. Choose that WLED's Preset or Playlist
+            entity, such as select.dig_uno_holidays_preset; Home Assistant then shows its available options. Each WLED may use a different preset, playlist, or native effect.
+            Leaving this empty disables this event.
+          default: []
+          selector:
+            action:
+        mlk_day_before:
+          name: Martin Luther King Jr. Day — days before
+          description: >
+            Start Martin Luther King Jr. Day this many days before its actual date. Set 0 to start on the
+            holiday itself.
+          default: 0
+          selector:
+            number:
+              min: 0
+              max: 60
+              step: 1
+              mode: slider
+        mlk_day_after:
+          name: Martin Luther King Jr. Day — days after
+          description: >
+            Keep Martin Luther King Jr. Day active this many days after its actual date. Set 0 to stop after
+            the holiday date.
+          default: 0
+          selector:
+            number:
+              min: 0
+              max: 60
+              step: 1
+              mode: slider
+        mlk_day_actions:
+          name: Martin Luther King Jr. Day actions
+          description: >
+            Use + Add action to define exactly what should happen for this event. Add as many WLED
+            controllers, regular lights, scenes, switches, scripts, or other Home Assistant actions as
+            you need. For WLED, add Turn on, then add Select option. Choose that WLED's Preset or Playlist
+            entity, such as select.dig_uno_holidays_preset; Home Assistant then shows its available options. Each WLED may use a different preset, playlist, or native effect.
+            Leaving this empty disables this event.
+          default: []
+          selector:
+            action:
+        valentines_day_before:
+          name: Valentine's Day — days before
+          description: >
+            Start Valentine's Day this many days before its actual date. Set 0 to start on the holiday
+            itself.
+          default: 0
+          selector:
+            number:
+              min: 0
+              max: 60
+              step: 1
+              mode: slider
+        valentines_day_after:
+          name: Valentine's Day — days after
+          description: >
+            Keep Valentine's Day active this many days after its actual date. Set 0 to stop after the
+            holiday date.
+          default: 0
+          selector:
+            number:
+              min: 0
+              max: 60
+              step: 1
+              mode: slider
+        valentines_day_actions:
+          name: Valentine's Day actions
+          description: >
+            Use + Add action to define exactly what should happen for this event. Add as many WLED
+            controllers, regular lights, scenes, switches, scripts, or other Home Assistant actions as
+            you need. For WLED, add Turn on, then add Select option. Choose that WLED's Preset or Playlist
+            entity, such as select.dig_uno_holidays_preset; Home Assistant then shows its available options. Each WLED may use a different preset, playlist, or native effect.
+            Leaving this empty disables this event.
+          default: []
+          selector:
+            action:
+        presidents_day_before:
+          name: Presidents' Day — days before
+          description: >
+            Start Presidents' Day this many days before its actual date. Set 0 to start on the holiday
+            itself.
+          default: 0
+          selector:
+            number:
+              min: 0
+              max: 60
+              step: 1
+              mode: slider
+        presidents_day_after:
+          name: Presidents' Day — days after
+          description: >
+            Keep Presidents' Day active this many days after its actual date. Set 0 to stop after the
+            holiday date.
+          default: 0
+          selector:
+            number:
+              min: 0
+              max: 60
+              step: 1
+              mode: slider
+        presidents_day_actions:
+          name: Presidents' Day actions
+          description: >
+            Use + Add action to define exactly what should happen for this event. Add as many WLED
+            controllers, regular lights, scenes, switches, scripts, or other Home Assistant actions as
+            you need. For WLED, add Turn on, then add Select option. Choose that WLED's Preset or Playlist
+            entity, such as select.dig_uno_holidays_preset; Home Assistant then shows its available options. Each WLED may use a different preset, playlist, or native effect.
+            Leaving this empty disables this event.
+          default: []
+          selector:
+            action:
+        st_patricks_day_before:
+          name: St. Patrick's Day — days before
+          description: >
+            Start St. Patrick's Day this many days before its actual date. Set 0 to start on the holiday
+            itself.
+          default: 0
+          selector:
+            number:
+              min: 0
+              max: 60
+              step: 1
+              mode: slider
+        st_patricks_day_after:
+          name: St. Patrick's Day — days after
+          description: >
+            Keep St. Patrick's Day active this many days after its actual date. Set 0 to stop after the
+            holiday date.
+          default: 0
+          selector:
+            number:
+              min: 0
+              max: 60
+              step: 1
+              mode: slider
+        st_patricks_day_actions:
+          name: St. Patrick's Day actions
+          description: >
+            Use + Add action to define exactly what should happen for this event. Add as many WLED
+            controllers, regular lights, scenes, switches, scripts, or other Home Assistant actions as
+            you need. For WLED, add Turn on, then add Select option. Choose that WLED's Preset or Playlist
+            entity, such as select.dig_uno_holidays_preset; Home Assistant then shows its available options. Each WLED may use a different preset, playlist, or native effect.
+            Leaving this empty disables this event.
+          default: []
+          selector:
+            action:
+        easter_before:
+          name: Easter Sunday — days before
+          description: >
+            Start Easter Sunday this many days before its actual date. Set 0 to start on the holiday itself.
+          default: 0
+          selector:
+            number:
+              min: 0
+              max: 60
+              step: 1
+              mode: slider
+        easter_after:
+          name: Easter Sunday — days after
+          description: >
+            Keep Easter Sunday active this many days after its actual date. Set 0 to stop after the holiday
+            date.
+          default: 0
+          selector:
+            number:
+              min: 0
+              max: 60
+              step: 1
+              mode: slider
+        easter_actions:
+          name: Easter Sunday actions
+          description: >
+            Use + Add action to define exactly what should happen for this event. Add as many WLED
+            controllers, regular lights, scenes, switches, scripts, or other Home Assistant actions as
+            you need. For WLED, add Turn on, then add Select option. Choose that WLED's Preset or Playlist
+            entity, such as select.dig_uno_holidays_preset; Home Assistant then shows its available options. Each WLED may use a different preset, playlist, or native effect.
+            Leaving this empty disables this event.
+          default: []
+          selector:
+            action:
+        mothers_day_before:
+          name: Mother's Day — days before
+          description: >
+            Start Mother's Day this many days before its actual date. Set 0 to start on the holiday itself.
+          default: 0
+          selector:
+            number:
+              min: 0
+              max: 60
+              step: 1
+              mode: slider
+        mothers_day_after:
+          name: Mother's Day — days after
+          description: >
+            Keep Mother's Day active this many days after its actual date. Set 0 to stop after the holiday
+            date.
+          default: 0
+          selector:
+            number:
+              min: 0
+              max: 60
+              step: 1
+              mode: slider
+        mothers_day_actions:
+          name: Mother's Day actions
+          description: >
+            Use + Add action to define exactly what should happen for this event. Add as many WLED
+            controllers, regular lights, scenes, switches, scripts, or other Home Assistant actions as
+            you need. For WLED, add Turn on, then add Select option. Choose that WLED's Preset or Playlist
+            entity, such as select.dig_uno_holidays_preset; Home Assistant then shows its available options. Each WLED may use a different preset, playlist, or native effect.
+            Leaving this empty disables this event.
+          default: []
+          selector:
+            action:
+        memorial_day_before:
+          name: Memorial Day — days before
+          description: >
+            Start Memorial Day this many days before its actual date. Set 0 to start on the holiday itself.
+          default: 0
+          selector:
+            number:
+              min: 0
+              max: 60
+              step: 1
+              mode: slider
+        memorial_day_after:
+          name: Memorial Day — days after
+          description: >
+            Keep Memorial Day active this many days after its actual date. Set 0 to stop after the holiday
+            date.
+          default: 0
+          selector:
+            number:
+              min: 0
+              max: 60
+              step: 1
+              mode: slider
+        memorial_day_actions:
+          name: Memorial Day actions
+          description: >
+            Use + Add action to define exactly what should happen for this event. Add as many WLED
+            controllers, regular lights, scenes, switches, scripts, or other Home Assistant actions as
+            you need. For WLED, add Turn on, then add Select option. Choose that WLED's Preset or Playlist
+            entity, such as select.dig_uno_holidays_preset; Home Assistant then shows its available options. Each WLED may use a different preset, playlist, or native effect.
+            Leaving this empty disables this event.
+          default: []
+          selector:
+            action:
+        fathers_day_before:
+          name: Father's Day — days before
+          description: >
+            Start Father's Day this many days before its actual date. Set 0 to start on the holiday itself.
+          default: 0
+          selector:
+            number:
+              min: 0
+              max: 60
+              step: 1
+              mode: slider
+        fathers_day_after:
+          name: Father's Day — days after
+          description: >
+            Keep Father's Day active this many days after its actual date. Set 0 to stop after the holiday
+            date.
+          default: 0
+          selector:
+            number:
+              min: 0
+              max: 60
+              step: 1
+              mode: slider
+        fathers_day_actions:
+          name: Father's Day actions
+          description: >
+            Use + Add action to define exactly what should happen for this event. Add as many WLED
+            controllers, regular lights, scenes, switches, scripts, or other Home Assistant actions as
+            you need. For WLED, add Turn on, then add Select option. Choose that WLED's Preset or Playlist
+            entity, such as select.dig_uno_holidays_preset; Home Assistant then shows its available options. Each WLED may use a different preset, playlist, or native effect.
+            Leaving this empty disables this event.
+          default: []
+          selector:
+            action:
+        juneteenth_before:
+          name: Juneteenth — days before
+          description: >
+            Start Juneteenth this many days before its actual date. Set 0 to start on the holiday itself.
+          default: 0
+          selector:
+            number:
+              min: 0
+              max: 60
+              step: 1
+              mode: slider
+        juneteenth_after:
+          name: Juneteenth — days after
+          description: >
+            Keep Juneteenth active this many days after its actual date. Set 0 to stop after the holiday
+            date.
+          default: 0
+          selector:
+            number:
+              min: 0
+              max: 60
+              step: 1
+              mode: slider
+        juneteenth_actions:
+          name: Juneteenth actions
+          description: >
+            Use + Add action to define exactly what should happen for this event. Add as many WLED
+            controllers, regular lights, scenes, switches, scripts, or other Home Assistant actions as
+            you need. For WLED, add Turn on, then add Select option. Choose that WLED's Preset or Playlist
+            entity, such as select.dig_uno_holidays_preset; Home Assistant then shows its available options. Each WLED may use a different preset, playlist, or native effect.
+            Leaving this empty disables this event.
+          default: []
+          selector:
+            action:
+        independence_day_before:
+          name: Independence Day — days before
+          description: >
+            Start Independence Day this many days before its actual date. Set 0 to start on the holiday
+            itself.
+          default: 0
+          selector:
+            number:
+              min: 0
+              max: 60
+              step: 1
+              mode: slider
+        independence_day_after:
+          name: Independence Day — days after
+          description: >
+            Keep Independence Day active this many days after its actual date. Set 0 to stop after the
+            holiday date.
+          default: 0
+          selector:
+            number:
+              min: 0
+              max: 60
+              step: 1
+              mode: slider
+        independence_day_actions:
+          name: Independence Day actions
+          description: >
+            Use + Add action to define exactly what should happen for this event. Add as many WLED
+            controllers, regular lights, scenes, switches, scripts, or other Home Assistant actions as
+            you need. For WLED, add Turn on, then add Select option. Choose that WLED's Preset or Playlist
+            entity, such as select.dig_uno_holidays_preset; Home Assistant then shows its available options. Each WLED may use a different preset, playlist, or native effect.
+            Leaving this empty disables this event.
+          default: []
+          selector:
+            action:
+        labor_day_before:
+          name: Labor Day — days before
+          description: >
+            Start Labor Day this many days before its actual date. Set 0 to start on the holiday itself.
+          default: 0
+          selector:
+            number:
+              min: 0
+              max: 60
+              step: 1
+              mode: slider
+        labor_day_after:
+          name: Labor Day — days after
+          description: >
+            Keep Labor Day active this many days after its actual date. Set 0 to stop after the holiday
+            date.
+          default: 0
+          selector:
+            number:
+              min: 0
+              max: 60
+              step: 1
+              mode: slider
+        labor_day_actions:
+          name: Labor Day actions
+          description: >
+            Use + Add action to define exactly what should happen for this event. Add as many WLED
+            controllers, regular lights, scenes, switches, scripts, or other Home Assistant actions as
+            you need. For WLED, add Turn on, then add Select option. Choose that WLED's Preset or Playlist
+            entity, such as select.dig_uno_holidays_preset; Home Assistant then shows its available options. Each WLED may use a different preset, playlist, or native effect.
+            Leaving this empty disables this event.
+          default: []
+          selector:
+            action:
+        halloween_before:
+          name: Halloween — days before
+          description: >
+            Start Halloween this many days before its actual date. Set 0 to start on the holiday itself.
+          default: 0
+          selector:
+            number:
+              min: 0
+              max: 60
+              step: 1
+              mode: slider
+        halloween_after:
+          name: Halloween — days after
+          description: >
+            Keep Halloween active this many days after its actual date. Set 0 to stop after the holiday
+            date.
+          default: 0
+          selector:
+            number:
+              min: 0
+              max: 60
+              step: 1
+              mode: slider
+        halloween_actions:
+          name: Halloween actions
+          description: >
+            Use + Add action to define exactly what should happen for this event. Add as many WLED
+            controllers, regular lights, scenes, switches, scripts, or other Home Assistant actions as
+            you need. For WLED, add Turn on, then add Select option. Choose that WLED's Preset or Playlist
+            entity, such as select.dig_uno_holidays_preset; Home Assistant then shows its available options. Each WLED may use a different preset, playlist, or native effect.
+            Leaving this empty disables this event.
+          default: []
+          selector:
+            action:
+        veterans_day_before:
+          name: Veterans Day — days before
+          description: >
+            Start Veterans Day this many days before its actual date. Set 0 to start on the holiday itself.
+          default: 0
+          selector:
+            number:
+              min: 0
+              max: 60
+              step: 1
+              mode: slider
+        veterans_day_after:
+          name: Veterans Day — days after
+          description: >
+            Keep Veterans Day active this many days after its actual date. Set 0 to stop after the holiday
+            date.
+          default: 0
+          selector:
+            number:
+              min: 0
+              max: 60
+              step: 1
+              mode: slider
+        veterans_day_actions:
+          name: Veterans Day actions
+          description: >
+            Use + Add action to define exactly what should happen for this event. Add as many WLED
+            controllers, regular lights, scenes, switches, scripts, or other Home Assistant actions as
+            you need. For WLED, add Turn on, then add Select option. Choose that WLED's Preset or Playlist
+            entity, such as select.dig_uno_holidays_preset; Home Assistant then shows its available options. Each WLED may use a different preset, playlist, or native effect.
+            Leaving this empty disables this event.
+          default: []
+          selector:
+            action:
+        thanksgiving_before:
+          name: Thanksgiving — days before
+          description: >
+            Start Thanksgiving this many days before its actual date. Set 0 to start on the holiday itself.
+          default: 0
+          selector:
+            number:
+              min: 0
+              max: 60
+              step: 1
+              mode: slider
+        thanksgiving_after:
+          name: Thanksgiving — days after
+          description: >
+            Keep Thanksgiving active this many days after its actual date. Set 0 to stop after the holiday
+            date.
+          default: 0
+          selector:
+            number:
+              min: 0
+              max: 60
+              step: 1
+              mode: slider
+        thanksgiving_actions:
+          name: Thanksgiving actions
+          description: >
+            Use + Add action to define exactly what should happen for this event. Add as many WLED
+            controllers, regular lights, scenes, switches, scripts, or other Home Assistant actions as
+            you need. For WLED, add Turn on, then add Select option. Choose that WLED's Preset or Playlist
+            entity, such as select.dig_uno_holidays_preset; Home Assistant then shows its available options. Each WLED may use a different preset, playlist, or native effect.
+            Leaving this empty disables this event.
+          default: []
+          selector:
+            action:
+        christmas_eve_before:
+          name: Christmas Eve — days before
+          description: >
+            Start Christmas Eve this many days before its actual date. Set 0 to start on the holiday itself.
+          default: 0
+          selector:
+            number:
+              min: 0
+              max: 60
+              step: 1
+              mode: slider
+        christmas_eve_after:
+          name: Christmas Eve — days after
+          description: >
+            Keep Christmas Eve active this many days after its actual date. Set 0 to stop after the holiday
+            date.
+          default: 0
+          selector:
+            number:
+              min: 0
+              max: 60
+              step: 1
+              mode: slider
+        christmas_eve_actions:
+          name: Christmas Eve actions
+          description: >
+            Use + Add action to define exactly what should happen for this event. Add as many WLED
+            controllers, regular lights, scenes, switches, scripts, or other Home Assistant actions as
+            you need. For WLED, add Turn on, then add Select option. Choose that WLED's Preset or Playlist
+            entity, such as select.dig_uno_holidays_preset; Home Assistant then shows its available options. Each WLED may use a different preset, playlist, or native effect.
+            Leaving this empty disables this event.
+          default: []
+          selector:
+            action:
+        christmas_day_before:
+          name: Christmas Day — days before
+          description: >
+            Start Christmas Day this many days before its actual date. Set 0 to start on the holiday itself.
+          default: 0
+          selector:
+            number:
+              min: 0
+              max: 60
+              step: 1
+              mode: slider
+        christmas_day_after:
+          name: Christmas Day — days after
+          description: >
+            Keep Christmas Day active this many days after its actual date. Set 0 to stop after the holiday
+            date.
+          default: 0
+          selector:
+            number:
+              min: 0
+              max: 60
+              step: 1
+              mode: slider
+        christmas_day_actions:
+          name: Christmas Day actions
+          description: >
+            Use + Add action to define exactly what should happen for this event. Add as many WLED
+            controllers, regular lights, scenes, switches, scripts, or other Home Assistant actions as
+            you need. For WLED, add Turn on, then add Select option. Choose that WLED's Preset or Playlist
+            entity, such as select.dig_uno_holidays_preset; Home Assistant then shows its available options. Each WLED may use a different preset, playlist, or native effect.
+            Leaving this empty disables this event.
+          default: []
+          selector:
+            action:
+        new_years_eve_before:
+          name: New Year's Eve — days before
+          description: >
+            Start New Year's Eve this many days before its actual date. Set 0 to start on the holiday
+            itself.
+          default: 0
+          selector:
+            number:
+              min: 0
+              max: 60
+              step: 1
+              mode: slider
+        new_years_eve_after:
+          name: New Year's Eve — days after
+          description: >
+            Keep New Year's Eve active this many days after its actual date. Set 0 to stop after the holiday
+            date.
+          default: 0
+          selector:
+            number:
+              min: 0
+              max: 60
+              step: 1
+              mode: slider
+        new_years_eve_actions:
+          name: New Year's Eve actions
+          description: >
+            Use + Add action to define exactly what should happen for this event. Add as many WLED
+            controllers, regular lights, scenes, switches, scripts, or other Home Assistant actions as
+            you need. For WLED, add Turn on, then add Select option. Choose that WLED's Preset or Playlist
+            entity, such as select.dig_uno_holidays_preset; Home Assistant then shows its available options. Each WLED may use a different preset, playlist, or native effect.
+            Leaving this empty disables this event.
+          default: []
+          selector:
+            action:
+    custom_events:
+      name: Ten custom annual events
+      icon: mdi:calendar-edit
+      collapsed: true
+      description: >
+        Ten reusable MM-DD annual event slots for birthdays, anniversaries, sports dates, neighborhood
+        events, or anything not covered by built-in holidays.
+      input:
+        custom_1_name:
+          name: Custom event 1 name
+          description: >
+            Optional friendly label for this custom annual event. The date and actions control behavior.
+          default: ''
+          selector:
+            text:
+        custom_1_date:
+          name: Custom event 1 date
+          description: Enter MM-DD. Leave blank to disable.
+          default: ''
+          selector:
+            text:
+        custom_1_before:
+          name: Custom event 1 — days before
+          description: >
+            Start Custom event 1 this many days before its actual date. Set 0 to start on the holiday
+            itself.
+          default: 0
+          selector:
+            number:
+              min: 0
+              max: 60
+              step: 1
+              mode: slider
+        custom_1_after:
+          name: Custom event 1 — days after
+          description: >
+            Keep Custom event 1 active this many days after its actual date. Set 0 to stop after the holiday
+            date.
+          default: 0
+          selector:
+            number:
+              min: 0
+              max: 60
+              step: 1
+              mode: slider
+        custom_1_actions:
+          name: Custom event 1 actions
+          description: >
+            Use + Add action to define exactly what should happen for this event. Add as many WLED
+            controllers, regular lights, scenes, switches, scripts, or other Home Assistant actions as
+            you need. For WLED, add Turn on, then add Select option. Choose that WLED's Preset or Playlist
+            entity, such as select.dig_uno_holidays_preset; Home Assistant then shows its available options. Each WLED may use a different preset, playlist, or native effect.
+            Leaving this empty disables this event.
+          default: []
+          selector:
+            action:
+        custom_2_name:
+          name: Custom event 2 name
+          description: >
+            Optional friendly label for this custom annual event. The date and actions control behavior.
+          default: ''
+          selector:
+            text:
+        custom_2_date:
+          name: Custom event 2 date
+          description: Enter MM-DD. Leave blank to disable.
+          default: ''
+          selector:
+            text:
+        custom_2_before:
+          name: Custom event 2 — days before
+          description: >
+            Start Custom event 2 this many days before its actual date. Set 0 to start on the holiday
+            itself.
+          default: 0
+          selector:
+            number:
+              min: 0
+              max: 60
+              step: 1
+              mode: slider
+        custom_2_after:
+          name: Custom event 2 — days after
+          description: >
+            Keep Custom event 2 active this many days after its actual date. Set 0 to stop after the holiday
+            date.
+          default: 0
+          selector:
+            number:
+              min: 0
+              max: 60
+              step: 1
+              mode: slider
+        custom_2_actions:
+          name: Custom event 2 actions
+          description: >
+            Use + Add action to define exactly what should happen for this event. Add as many WLED
+            controllers, regular lights, scenes, switches, scripts, or other Home Assistant actions as
+            you need. For WLED, add Turn on, then add Select option. Choose that WLED's Preset or Playlist
+            entity, such as select.dig_uno_holidays_preset; Home Assistant then shows its available options. Each WLED may use a different preset, playlist, or native effect.
+            Leaving this empty disables this event.
+          default: []
+          selector:
+            action:
+        custom_3_name:
+          name: Custom event 3 name
+          description: >
+            Optional friendly label for this custom annual event. The date and actions control behavior.
+          default: ''
+          selector:
+            text:
+        custom_3_date:
+          name: Custom event 3 date
+          description: Enter MM-DD. Leave blank to disable.
+          default: ''
+          selector:
+            text:
+        custom_3_before:
+          name: Custom event 3 — days before
+          description: >
+            Start Custom event 3 this many days before its actual date. Set 0 to start on the holiday
+            itself.
+          default: 0
+          selector:
+            number:
+              min: 0
+              max: 60
+              step: 1
+              mode: slider
+        custom_3_after:
+          name: Custom event 3 — days after
+          description: >
+            Keep Custom event 3 active this many days after its actual date. Set 0 to stop after the holiday
+            date.
+          default: 0
+          selector:
+            number:
+              min: 0
+              max: 60
+              step: 1
+              mode: slider
+        custom_3_actions:
+          name: Custom event 3 actions
+          description: >
+            Use + Add action to define exactly what should happen for this event. Add as many WLED
+            controllers, regular lights, scenes, switches, scripts, or other Home Assistant actions as
+            you need. For WLED, add Turn on, then add Select option. Choose that WLED's Preset or Playlist
+            entity, such as select.dig_uno_holidays_preset; Home Assistant then shows its available options. Each WLED may use a different preset, playlist, or native effect.
+            Leaving this empty disables this event.
+          default: []
+          selector:
+            action:
+        custom_4_name:
+          name: Custom event 4 name
+          description: >
+            Optional friendly label for this custom annual event. The date and actions control behavior.
+          default: ''
+          selector:
+            text:
+        custom_4_date:
+          name: Custom event 4 date
+          description: Enter MM-DD. Leave blank to disable.
+          default: ''
+          selector:
+            text:
+        custom_4_before:
+          name: Custom event 4 — days before
+          description: >
+            Start Custom event 4 this many days before its actual date. Set 0 to start on the holiday
+            itself.
+          default: 0
+          selector:
+            number:
+              min: 0
+              max: 60
+              step: 1
+              mode: slider
+        custom_4_after:
+          name: Custom event 4 — days after
+          description: >
+            Keep Custom event 4 active this many days after its actual date. Set 0 to stop after the holiday
+            date.
+          default: 0
+          selector:
+            number:
+              min: 0
+              max: 60
+              step: 1
+              mode: slider
+        custom_4_actions:
+          name: Custom event 4 actions
+          description: >
+            Use + Add action to define exactly what should happen for this event. Add as many WLED
+            controllers, regular lights, scenes, switches, scripts, or other Home Assistant actions as
+            you need. For WLED, add Turn on, then add Select option. Choose that WLED's Preset or Playlist
+            entity, such as select.dig_uno_holidays_preset; Home Assistant then shows its available options. Each WLED may use a different preset, playlist, or native effect.
+            Leaving this empty disables this event.
+          default: []
+          selector:
+            action:
+        custom_5_name:
+          name: Custom event 5 name
+          description: >
+            Optional friendly label for this custom annual event. The date and actions control behavior.
+          default: ''
+          selector:
+            text:
+        custom_5_date:
+          name: Custom event 5 date
+          description: Enter MM-DD. Leave blank to disable.
+          default: ''
+          selector:
+            text:
+        custom_5_before:
+          name: Custom event 5 — days before
+          description: >
+            Start Custom event 5 this many days before its actual date. Set 0 to start on the holiday
+            itself.
+          default: 0
+          selector:
+            number:
+              min: 0
+              max: 60
+              step: 1
+              mode: slider
+        custom_5_after:
+          name: Custom event 5 — days after
+          description: >
+            Keep Custom event 5 active this many days after its actual date. Set 0 to stop after the holiday
+            date.
+          default: 0
+          selector:
+            number:
+              min: 0
+              max: 60
+              step: 1
+              mode: slider
+        custom_5_actions:
+          name: Custom event 5 actions
+          description: >
+            Use + Add action to define exactly what should happen for this event. Add as many WLED
+            controllers, regular lights, scenes, switches, scripts, or other Home Assistant actions as
+            you need. For WLED, add Turn on, then add Select option. Choose that WLED's Preset or Playlist
+            entity, such as select.dig_uno_holidays_preset; Home Assistant then shows its available options. Each WLED may use a different preset, playlist, or native effect.
+            Leaving this empty disables this event.
+          default: []
+          selector:
+            action:
+        custom_6_name:
+          name: Custom event 6 name
+          description: >
+            Optional friendly label for this custom annual event. The date and actions control behavior.
+          default: ''
+          selector:
+            text:
+        custom_6_date:
+          name: Custom event 6 date
+          description: Enter MM-DD. Leave blank to disable.
+          default: ''
+          selector:
+            text:
+        custom_6_before:
+          name: Custom event 6 — days before
+          description: >
+            Start Custom event 6 this many days before its actual date. Set 0 to start on the holiday
+            itself.
+          default: 0
+          selector:
+            number:
+              min: 0
+              max: 60
+              step: 1
+              mode: slider
+        custom_6_after:
+          name: Custom event 6 — days after
+          description: >
+            Keep Custom event 6 active this many days after its actual date. Set 0 to stop after the holiday
+            date.
+          default: 0
+          selector:
+            number:
+              min: 0
+              max: 60
+              step: 1
+              mode: slider
+        custom_6_actions:
+          name: Custom event 6 actions
+          description: >
+            Use + Add action to define exactly what should happen for this event. Add as many WLED
+            controllers, regular lights, scenes, switches, scripts, or other Home Assistant actions as
+            you need. For WLED, add Turn on, then add Select option. Choose that WLED's Preset or Playlist
+            entity, such as select.dig_uno_holidays_preset; Home Assistant then shows its available options. Each WLED may use a different preset, playlist, or native effect.
+            Leaving this empty disables this event.
+          default: []
+          selector:
+            action:
+        custom_7_name:
+          name: Custom event 7 name
+          description: >
+            Optional friendly label for this custom annual event. The date and actions control behavior.
+          default: ''
+          selector:
+            text:
+        custom_7_date:
+          name: Custom event 7 date
+          description: Enter MM-DD. Leave blank to disable.
+          default: ''
+          selector:
+            text:
+        custom_7_before:
+          name: Custom event 7 — days before
+          description: >
+            Start Custom event 7 this many days before its actual date. Set 0 to start on the holiday
+            itself.
+          default: 0
+          selector:
+            number:
+              min: 0
+              max: 60
+              step: 1
+              mode: slider
+        custom_7_after:
+          name: Custom event 7 — days after
+          description: >
+            Keep Custom event 7 active this many days after its actual date. Set 0 to stop after the holiday
+            date.
+          default: 0
+          selector:
+            number:
+              min: 0
+              max: 60
+              step: 1
+              mode: slider
+        custom_7_actions:
+          name: Custom event 7 actions
+          description: >
+            Use + Add action to define exactly what should happen for this event. Add as many WLED
+            controllers, regular lights, scenes, switches, scripts, or other Home Assistant actions as
+            you need. For WLED, add Turn on, then add Select option. Choose that WLED's Preset or Playlist
+            entity, such as select.dig_uno_holidays_preset; Home Assistant then shows its available options. Each WLED may use a different preset, playlist, or native effect.
+            Leaving this empty disables this event.
+          default: []
+          selector:
+            action:
+        custom_8_name:
+          name: Custom event 8 name
+          description: >
+            Optional friendly label for this custom annual event. The date and actions control behavior.
+          default: ''
+          selector:
+            text:
+        custom_8_date:
+          name: Custom event 8 date
+          description: Enter MM-DD. Leave blank to disable.
+          default: ''
+          selector:
+            text:
+        custom_8_before:
+          name: Custom event 8 — days before
+          description: >
+            Start Custom event 8 this many days before its actual date. Set 0 to start on the holiday
+            itself.
+          default: 0
+          selector:
+            number:
+              min: 0
+              max: 60
+              step: 1
+              mode: slider
+        custom_8_after:
+          name: Custom event 8 — days after
+          description: >
+            Keep Custom event 8 active this many days after its actual date. Set 0 to stop after the holiday
+            date.
+          default: 0
+          selector:
+            number:
+              min: 0
+              max: 60
+              step: 1
+              mode: slider
+        custom_8_actions:
+          name: Custom event 8 actions
+          description: >
+            Use + Add action to define exactly what should happen for this event. Add as many WLED
+            controllers, regular lights, scenes, switches, scripts, or other Home Assistant actions as
+            you need. For WLED, add Turn on, then add Select option. Choose that WLED's Preset or Playlist
+            entity, such as select.dig_uno_holidays_preset; Home Assistant then shows its available options. Each WLED may use a different preset, playlist, or native effect.
+            Leaving this empty disables this event.
+          default: []
+          selector:
+            action:
+        custom_9_name:
+          name: Custom event 9 name
+          description: >
+            Optional friendly label for this custom annual event. The date and actions control behavior.
+          default: ''
+          selector:
+            text:
+        custom_9_date:
+          name: Custom event 9 date
+          description: Enter MM-DD. Leave blank to disable.
+          default: ''
+          selector:
+            text:
+        custom_9_before:
+          name: Custom event 9 — days before
+          description: >
+            Start Custom event 9 this many days before its actual date. Set 0 to start on the holiday
+            itself.
+          default: 0
+          selector:
+            number:
+              min: 0
+              max: 60
+              step: 1
+              mode: slider
+        custom_9_after:
+          name: Custom event 9 — days after
+          description: >
+            Keep Custom event 9 active this many days after its actual date. Set 0 to stop after the holiday
+            date.
+          default: 0
+          selector:
+            number:
+              min: 0
+              max: 60
+              step: 1
+              mode: slider
+        custom_9_actions:
+          name: Custom event 9 actions
+          description: >
+            Use + Add action to define exactly what should happen for this event. Add as many WLED
+            controllers, regular lights, scenes, switches, scripts, or other Home Assistant actions as
+            you need. For WLED, add Turn on, then add Select option. Choose that WLED's Preset or Playlist
+            entity, such as select.dig_uno_holidays_preset; Home Assistant then shows its available options. Each WLED may use a different preset, playlist, or native effect.
+            Leaving this empty disables this event.
+          default: []
+          selector:
+            action:
+        custom_10_name:
+          name: Custom event 10 name
+          description: >
+            Optional friendly label for this custom annual event. The date and actions control behavior.
+          default: ''
+          selector:
+            text:
+        custom_10_date:
+          name: Custom event 10 date
+          description: Enter MM-DD. Leave blank to disable.
+          default: ''
+          selector:
+            text:
+        custom_10_before:
+          name: Custom event 10 — days before
+          description: >
+            Start Custom event 10 this many days before its actual date. Set 0 to start on the holiday
+            itself.
+          default: 0
+          selector:
+            number:
+              min: 0
+              max: 60
+              step: 1
+              mode: slider
+        custom_10_after:
+          name: Custom event 10 — days after
+          description: >
+            Keep Custom event 10 active this many days after its actual date. Set 0 to stop after the
+            holiday date.
+          default: 0
+          selector:
+            number:
+              min: 0
+              max: 60
+              step: 1
+              mode: slider
+        custom_10_actions:
+          name: Custom event 10 actions
+          description: >
+            Use + Add action to define exactly what should happen for this event. Add as many WLED
+            controllers, regular lights, scenes, switches, scripts, or other Home Assistant actions as
+            you need. For WLED, add Turn on, then add Select option. Choose that WLED's Preset or Playlist
+            entity, such as select.dig_uno_holidays_preset; Home Assistant then shows its available options. Each WLED may use a different preset, playlist, or native effect.
+            Leaving this empty disables this event.
+          default: []
+          selector:
+            action:
+    christmas_rotation:
+      name: Christmas season preset rotation
+      icon: mdi:calendar-sync
+      collapsed: true
+      description: >
+        Rotate through up to seven different presets across the Christmas season, independent of the
+        single-day Christmas Eve / Christmas Day events above. Define the season window below, then
+        configure each of the seven slots: assign it either specific day(s) of the week (e.g. slot 1
+        = Monday, slot 2 = Tuesday...) or a repeating interval (e.g. every 2 days, every 3 days,
+        weekly). Leave a slot's actions empty to disable it. If more than one enabled slot matches the
+        same day, the lowest-numbered slot wins. Christmas Eve / Christmas Day above still take
+        priority over the rotation on those two specific dates if you've given them their own actions.
+      input:
+        christmas_rotation_start_date:
+          name: Christmas rotation — season start (MM-DD)
+          description: >
+            Enter MM-DD for the first day the rotation should be active, e.g. 12-01. Leave blank to
+            disable the whole rotation feature.
+          default: '12-01'
+          selector:
+            text:
+        christmas_rotation_end_date:
+          name: Christmas rotation — season end (MM-DD)
+          description: >
+            Enter MM-DD for the last day the rotation should be active, e.g. 12-25. If this is earlier
+            in the calendar than the start date, the season is treated as spanning the New Year (e.g.
+            12-01 to 01-06). Leave blank to disable the whole rotation feature.
+          default: '12-25'
+          selector:
+            text:
+        christmas_rot_1_name:
+          name: Christmas rotation slot 1 name
+          description: >
+            Optional friendly label for this rotation slot, e.g. "Blue & white" or "Candy cane".
+            The schedule mode and actions below control behavior.
+          default: ''
+          selector:
+            text:
+        christmas_rot_1_schedule_mode:
+          name: Christmas rotation slot 1 — schedule mode
+          description: >
+            Day of week: this preset plays on the selected weekday(s), every week, for the whole
+            Christmas season below. Repeating interval: this preset plays every N days counting from
+            the anchor date, regardless of weekday (use this for 2-day, 3-day, or custom cycles).
+          default: day_of_week
+          selector:
+            select:
+              mode: dropdown
+              options:
+                - label: Day(s) of the week
+                  value: day_of_week
+                - label: Repeating interval (every N days)
+                  value: interval
+        christmas_rot_1_days:
+          name: Christmas rotation slot 1 — days of week
+          description: >
+            Used only when schedule mode is "Day(s) of the week." Select every weekday this preset
+            should play. Leave empty if you're using the repeating interval mode instead.
+          default: []
+          selector:
+            select:
+              multiple: true
+              mode: list
+              options:
+                - label: Monday
+                  value: mon
+                - label: Tuesday
+                  value: tue
+                - label: Wednesday
+                  value: wed
+                - label: Thursday
+                  value: thu
+                - label: Friday
+                  value: fri
+                - label: Saturday
+                  value: sat
+                - label: Sunday
+                  value: sun
+        christmas_rot_1_interval_days:
+          name: Christmas rotation slot 1 — repeat every N days
+          description: >
+            Used only when schedule mode is "Repeating interval." This preset plays every N days,
+            counting from the anchor date below (e.g. 2 = every other day, 7 = weekly).
+          default: 7
+          selector:
+            number:
+              min: 1
+              max: 60
+              step: 1
+              mode: slider
+        christmas_rot_1_interval_anchor:
+          name: Christmas rotation slot 1 — anchor date
+          description: >
+            Used only when schedule mode is "Repeating interval." The interval is counted from this
+            date (any past or future date works — only the day-count offset matters). Required for
+            interval mode; leave day-of-week mode's days empty if you set this instead.
+          default: ''
+          selector:
+            date:
+        christmas_rot_1_actions:
+          name: Christmas rotation slot 1 actions
+          description: >
+            Use + Add action to define exactly what should happen when this slot is active. Add as
+            many WLED controllers, regular lights, scenes, switches, scripts, or other Home Assistant
+            actions as you need. Leaving this empty disables this rotation slot.
+          default: []
+          selector:
+            action:
+        christmas_rot_2_name:
+          name: Christmas rotation slot 2 name
+          description: >
+            Optional friendly label for this rotation slot, e.g. "Blue & white" or "Candy cane".
+            The schedule mode and actions below control behavior.
+          default: ''
+          selector:
+            text:
+        christmas_rot_2_schedule_mode:
+          name: Christmas rotation slot 2 — schedule mode
+          description: >
+            Day of week: this preset plays on the selected weekday(s), every week, for the whole
+            Christmas season below. Repeating interval: this preset plays every N days counting from
+            the anchor date, regardless of weekday (use this for 2-day, 3-day, or custom cycles).
+          default: day_of_week
+          selector:
+            select:
+              mode: dropdown
+              options:
+                - label: Day(s) of the week
+                  value: day_of_week
+                - label: Repeating interval (every N days)
+                  value: interval
+        christmas_rot_2_days:
+          name: Christmas rotation slot 2 — days of week
+          description: >
+            Used only when schedule mode is "Day(s) of the week." Select every weekday this preset
+            should play. Leave empty if you're using the repeating interval mode instead.
+          default: []
+          selector:
+            select:
+              multiple: true
+              mode: list
+              options:
+                - label: Monday
+                  value: mon
+                - label: Tuesday
+                  value: tue
+                - label: Wednesday
+                  value: wed
+                - label: Thursday
+                  value: thu
+                - label: Friday
+                  value: fri
+                - label: Saturday
+                  value: sat
+                - label: Sunday
+                  value: sun
+        christmas_rot_2_interval_days:
+          name: Christmas rotation slot 2 — repeat every N days
+          description: >
+            Used only when schedule mode is "Repeating interval." This preset plays every N days,
+            counting from the anchor date below (e.g. 2 = every other day, 7 = weekly).
+          default: 7
+          selector:
+            number:
+              min: 1
+              max: 60
+              step: 1
+              mode: slider
+        christmas_rot_2_interval_anchor:
+          name: Christmas rotation slot 2 — anchor date
+          description: >
+            Used only when schedule mode is "Repeating interval." The interval is counted from this
+            date (any past or future date works — only the day-count offset matters). Required for
+            interval mode; leave day-of-week mode's days empty if you set this instead.
+          default: ''
+          selector:
+            date:
+        christmas_rot_2_actions:
+          name: Christmas rotation slot 2 actions
+          description: >
+            Use + Add action to define exactly what should happen when this slot is active. Add as
+            many WLED controllers, regular lights, scenes, switches, scripts, or other Home Assistant
+            actions as you need. Leaving this empty disables this rotation slot.
+          default: []
+          selector:
+            action:
+        christmas_rot_3_name:
+          name: Christmas rotation slot 3 name
+          description: >
+            Optional friendly label for this rotation slot, e.g. "Blue & white" or "Candy cane".
+            The schedule mode and actions below control behavior.
+          default: ''
+          selector:
+            text:
+        christmas_rot_3_schedule_mode:
+          name: Christmas rotation slot 3 — schedule mode
+          description: >
+            Day of week: this preset plays on the selected weekday(s), every week, for the whole
+            Christmas season below. Repeating interval: this preset plays every N days counting from
+            the anchor date, regardless of weekday (use this for 2-day, 3-day, or custom cycles).
+          default: day_of_week
+          selector:
+            select:
+              mode: dropdown
+              options:
+                - label: Day(s) of the week
+                  value: day_of_week
+                - label: Repeating interval (every N days)
+                  value: interval
+        christmas_rot_3_days:
+          name: Christmas rotation slot 3 — days of week
+          description: >
+            Used only when schedule mode is "Day(s) of the week." Select every weekday this preset
+            should play. Leave empty if you're using the repeating interval mode instead.
+          default: []
+          selector:
+            select:
+              multiple: true
+              mode: list
+              options:
+                - label: Monday
+                  value: mon
+                - label: Tuesday
+                  value: tue
+                - label: Wednesday
+                  value: wed
+                - label: Thursday
+                  value: thu
+                - label: Friday
+                  value: fri
+                - label: Saturday
+                  value: sat
+                - label: Sunday
+                  value: sun
+        christmas_rot_3_interval_days:
+          name: Christmas rotation slot 3 — repeat every N days
+          description: >
+            Used only when schedule mode is "Repeating interval." This preset plays every N days,
+            counting from the anchor date below (e.g. 2 = every other day, 7 = weekly).
+          default: 7
+          selector:
+            number:
+              min: 1
+              max: 60
+              step: 1
+              mode: slider
+        christmas_rot_3_interval_anchor:
+          name: Christmas rotation slot 3 — anchor date
+          description: >
+            Used only when schedule mode is "Repeating interval." The interval is counted from this
+            date (any past or future date works — only the day-count offset matters). Required for
+            interval mode; leave day-of-week mode's days empty if you set this instead.
+          default: ''
+          selector:
+            date:
+        christmas_rot_3_actions:
+          name: Christmas rotation slot 3 actions
+          description: >
+            Use + Add action to define exactly what should happen when this slot is active. Add as
+            many WLED controllers, regular lights, scenes, switches, scripts, or other Home Assistant
+            actions as you need. Leaving this empty disables this rotation slot.
+          default: []
+          selector:
+            action:
+        christmas_rot_4_name:
+          name: Christmas rotation slot 4 name
+          description: >
+            Optional friendly label for this rotation slot, e.g. "Blue & white" or "Candy cane".
+            The schedule mode and actions below control behavior.
+          default: ''
+          selector:
+            text:
+        christmas_rot_4_schedule_mode:
+          name: Christmas rotation slot 4 — schedule mode
+          description: >
+            Day of week: this preset plays on the selected weekday(s), every week, for the whole
+            Christmas season below. Repeating interval: this preset plays every N days counting from
+            the anchor date, regardless of weekday (use this for 2-day, 3-day, or custom cycles).
+          default: day_of_week
+          selector:
+            select:
+              mode: dropdown
+              options:
+                - label: Day(s) of the week
+                  value: day_of_week
+                - label: Repeating interval (every N days)
+                  value: interval
+        christmas_rot_4_days:
+          name: Christmas rotation slot 4 — days of week
+          description: >
+            Used only when schedule mode is "Day(s) of the week." Select every weekday this preset
+            should play. Leave empty if you're using the repeating interval mode instead.
+          default: []
+          selector:
+            select:
+              multiple: true
+              mode: list
+              options:
+                - label: Monday
+                  value: mon
+                - label: Tuesday
+                  value: tue
+                - label: Wednesday
+                  value: wed
+                - label: Thursday
+                  value: thu
+                - label: Friday
+                  value: fri
+                - label: Saturday
+                  value: sat
+                - label: Sunday
+                  value: sun
+        christmas_rot_4_interval_days:
+          name: Christmas rotation slot 4 — repeat every N days
+          description: >
+            Used only when schedule mode is "Repeating interval." This preset plays every N days,
+            counting from the anchor date below (e.g. 2 = every other day, 7 = weekly).
+          default: 7
+          selector:
+            number:
+              min: 1
+              max: 60
+              step: 1
+              mode: slider
+        christmas_rot_4_interval_anchor:
+          name: Christmas rotation slot 4 — anchor date
+          description: >
+            Used only when schedule mode is "Repeating interval." The interval is counted from this
+            date (any past or future date works — only the day-count offset matters). Required for
+            interval mode; leave day-of-week mode's days empty if you set this instead.
+          default: ''
+          selector:
+            date:
+        christmas_rot_4_actions:
+          name: Christmas rotation slot 4 actions
+          description: >
+            Use + Add action to define exactly what should happen when this slot is active. Add as
+            many WLED controllers, regular lights, scenes, switches, scripts, or other Home Assistant
+            actions as you need. Leaving this empty disables this rotation slot.
+          default: []
+          selector:
+            action:
+        christmas_rot_5_name:
+          name: Christmas rotation slot 5 name
+          description: >
+            Optional friendly label for this rotation slot, e.g. "Blue & white" or "Candy cane".
+            The schedule mode and actions below control behavior.
+          default: ''
+          selector:
+            text:
+        christmas_rot_5_schedule_mode:
+          name: Christmas rotation slot 5 — schedule mode
+          description: >
+            Day of week: this preset plays on the selected weekday(s), every week, for the whole
+            Christmas season below. Repeating interval: this preset plays every N days counting from
+            the anchor date, regardless of weekday (use this for 2-day, 3-day, or custom cycles).
+          default: day_of_week
+          selector:
+            select:
+              mode: dropdown
+              options:
+                - label: Day(s) of the week
+                  value: day_of_week
+                - label: Repeating interval (every N days)
+                  value: interval
+        christmas_rot_5_days:
+          name: Christmas rotation slot 5 — days of week
+          description: >
+            Used only when schedule mode is "Day(s) of the week." Select every weekday this preset
+            should play. Leave empty if you're using the repeating interval mode instead.
+          default: []
+          selector:
+            select:
+              multiple: true
+              mode: list
+              options:
+                - label: Monday
+                  value: mon
+                - label: Tuesday
+                  value: tue
+                - label: Wednesday
+                  value: wed
+                - label: Thursday
+                  value: thu
+                - label: Friday
+                  value: fri
+                - label: Saturday
+                  value: sat
+                - label: Sunday
+                  value: sun
+        christmas_rot_5_interval_days:
+          name: Christmas rotation slot 5 — repeat every N days
+          description: >
+            Used only when schedule mode is "Repeating interval." This preset plays every N days,
+            counting from the anchor date below (e.g. 2 = every other day, 7 = weekly).
+          default: 7
+          selector:
+            number:
+              min: 1
+              max: 60
+              step: 1
+              mode: slider
+        christmas_rot_5_interval_anchor:
+          name: Christmas rotation slot 5 — anchor date
+          description: >
+            Used only when schedule mode is "Repeating interval." The interval is counted from this
+            date (any past or future date works — only the day-count offset matters). Required for
+            interval mode; leave day-of-week mode's days empty if you set this instead.
+          default: ''
+          selector:
+            date:
+        christmas_rot_5_actions:
+          name: Christmas rotation slot 5 actions
+          description: >
+            Use + Add action to define exactly what should happen when this slot is active. Add as
+            many WLED controllers, regular lights, scenes, switches, scripts, or other Home Assistant
+            actions as you need. Leaving this empty disables this rotation slot.
+          default: []
+          selector:
+            action:
+        christmas_rot_6_name:
+          name: Christmas rotation slot 6 name
+          description: >
+            Optional friendly label for this rotation slot, e.g. "Blue & white" or "Candy cane".
+            The schedule mode and actions below control behavior.
+          default: ''
+          selector:
+            text:
+        christmas_rot_6_schedule_mode:
+          name: Christmas rotation slot 6 — schedule mode
+          description: >
+            Day of week: this preset plays on the selected weekday(s), every week, for the whole
+            Christmas season below. Repeating interval: this preset plays every N days counting from
+            the anchor date, regardless of weekday (use this for 2-day, 3-day, or custom cycles).
+          default: day_of_week
+          selector:
+            select:
+              mode: dropdown
+              options:
+                - label: Day(s) of the week
+                  value: day_of_week
+                - label: Repeating interval (every N days)
+                  value: interval
+        christmas_rot_6_days:
+          name: Christmas rotation slot 6 — days of week
+          description: >
+            Used only when schedule mode is "Day(s) of the week." Select every weekday this preset
+            should play. Leave empty if you're using the repeating interval mode instead.
+          default: []
+          selector:
+            select:
+              multiple: true
+              mode: list
+              options:
+                - label: Monday
+                  value: mon
+                - label: Tuesday
+                  value: tue
+                - label: Wednesday
+                  value: wed
+                - label: Thursday
+                  value: thu
+                - label: Friday
+                  value: fri
+                - label: Saturday
+                  value: sat
+                - label: Sunday
+                  value: sun
+        christmas_rot_6_interval_days:
+          name: Christmas rotation slot 6 — repeat every N days
+          description: >
+            Used only when schedule mode is "Repeating interval." This preset plays every N days,
+            counting from the anchor date below (e.g. 2 = every other day, 7 = weekly).
+          default: 7
+          selector:
+            number:
+              min: 1
+              max: 60
+              step: 1
+              mode: slider
+        christmas_rot_6_interval_anchor:
+          name: Christmas rotation slot 6 — anchor date
+          description: >
+            Used only when schedule mode is "Repeating interval." The interval is counted from this
+            date (any past or future date works — only the day-count offset matters). Required for
+            interval mode; leave day-of-week mode's days empty if you set this instead.
+          default: ''
+          selector:
+            date:
+        christmas_rot_6_actions:
+          name: Christmas rotation slot 6 actions
+          description: >
+            Use + Add action to define exactly what should happen when this slot is active. Add as
+            many WLED controllers, regular lights, scenes, switches, scripts, or other Home Assistant
+            actions as you need. Leaving this empty disables this rotation slot.
+          default: []
+          selector:
+            action:
+        christmas_rot_7_name:
+          name: Christmas rotation slot 7 name
+          description: >
+            Optional friendly label for this rotation slot, e.g. "Blue & white" or "Candy cane".
+            The schedule mode and actions below control behavior.
+          default: ''
+          selector:
+            text:
+        christmas_rot_7_schedule_mode:
+          name: Christmas rotation slot 7 — schedule mode
+          description: >
+            Day of week: this preset plays on the selected weekday(s), every week, for the whole
+            Christmas season below. Repeating interval: this preset plays every N days counting from
+            the anchor date, regardless of weekday (use this for 2-day, 3-day, or custom cycles).
+          default: day_of_week
+          selector:
+            select:
+              mode: dropdown
+              options:
+                - label: Day(s) of the week
+                  value: day_of_week
+                - label: Repeating interval (every N days)
+                  value: interval
+        christmas_rot_7_days:
+          name: Christmas rotation slot 7 — days of week
+          description: >
+            Used only when schedule mode is "Day(s) of the week." Select every weekday this preset
+            should play. Leave empty if you're using the repeating interval mode instead.
+          default: []
+          selector:
+            select:
+              multiple: true
+              mode: list
+              options:
+                - label: Monday
+                  value: mon
+                - label: Tuesday
+                  value: tue
+                - label: Wednesday
+                  value: wed
+                - label: Thursday
+                  value: thu
+                - label: Friday
+                  value: fri
+                - label: Saturday
+                  value: sat
+                - label: Sunday
+                  value: sun
+        christmas_rot_7_interval_days:
+          name: Christmas rotation slot 7 — repeat every N days
+          description: >
+            Used only when schedule mode is "Repeating interval." This preset plays every N days,
+            counting from the anchor date below (e.g. 2 = every other day, 7 = weekly).
+          default: 7
+          selector:
+            number:
+              min: 1
+              max: 60
+              step: 1
+              mode: slider
+        christmas_rot_7_interval_anchor:
+          name: Christmas rotation slot 7 — anchor date
+          description: >
+            Used only when schedule mode is "Repeating interval." The interval is counted from this
+            date (any past or future date works — only the day-count offset matters). Required for
+            interval mode; leave day-of-week mode's days empty if you set this instead.
+          default: ''
+          selector:
+            date:
+        christmas_rot_7_actions:
+          name: Christmas rotation slot 7 actions
+          description: >
+            Use + Add action to define exactly what should happen when this slot is active. Add as
+            many WLED controllers, regular lights, scenes, switches, scripts, or other Home Assistant
+            actions as you need. Leaving this empty disables this rotation slot.
+          default: []
+          selector:
+            action:
+    testing:
+      name: Testing & diagnostics
+      icon: mdi:test-tube
+      collapsed: true
+      description: >
+        Automatic is scheduler control, not an event: it chooses Normal/default, weather, a season, a
+        holiday, or a custom event according to the configured rules. To test, select a TEST option,
+        Save, then click Run actions once; saving alone does not run the test. Startup only runs power
+        and boot-delay steps. Selected event only assumes WLED is already powered and available.
+        Startup + selected event tests the complete sequence. Shutdown only cleans up after a test.
+        Tests do not update the scheduler memory helper, so if a test turns devices on outside the
+        scheduled window, run Shutdown only before returning to Automatic. Automatic scheduling
+        pauses while a test is armed.
+      input:
+        test_mode:
+          name: Test mode
+          description: >
+            Normal use: select Automatic — Normal scheduler operation and Save. Automatic chooses the
+            winning event; Normal/default is only its fallback event. For testing, select a TEST
+            option, Save, then click Run actions once. If the test powered devices outside their
+            schedule, run TEST — Shutdown actions only before returning this setting to Automatic and
+            saving again.
+          default: auto
+          selector:
+            select:
+              options:
+                - label: Automatic — Normal scheduler operation
+                  value: auto
+                - label: TEST — Startup actions only
+                  value: startup_only
+                - label: TEST — Selected event only
+                  value: event_only
+                - label: TEST — Startup + selected event
+                  value: startup_event
+                - label: TEST — Shutdown actions only
+                  value: shutdown_only
+        test_event:
+          name: Event to test
+          description: >
+            Select which event action list should run during an event test. Nothing is selected by
+            default, so a holiday or custom event cannot run accidentally. Choose Normal/default to
+            test ordinary nights, or choose any weather, season, holiday, or custom event.
+          default: none
+          selector:
+            select:
+              options:
+                - label: Choose an event to test…
+                  value: none
+                - label: Normal/default
+                  value: normal
+                - label: Rain
+                  value: weather_rain
+                - label: Snow
+                  value: weather_snow
+                - label: Heat
+                  value: weather_heat
+                - label: Freeze
+                  value: weather_freeze
+                - label: Spring
+                  value: spring
+                - label: Summer
+                  value: summer
+                - label: Fall
+                  value: fall
+                - label: Winter
+                  value: winter
+                - label: New Year's Day
+                  value: new_years_day
+                - label: Martin Luther King Jr. Day
+                  value: mlk_day
+                - label: Valentine's Day
+                  value: valentines_day
+                - label: Presidents' Day
+                  value: presidents_day
+                - label: St. Patrick's Day
+                  value: st_patricks_day
+                - label: Easter Sunday
+                  value: easter
+                - label: Mother's Day
+                  value: mothers_day
+                - label: Memorial Day
+                  value: memorial_day
+                - label: Father's Day
+                  value: fathers_day
+                - label: Juneteenth
+                  value: juneteenth
+                - label: Independence Day
+                  value: independence_day
+                - label: Labor Day
+                  value: labor_day
+                - label: Halloween
+                  value: halloween
+                - label: Veterans Day
+                  value: veterans_day
+                - label: Thanksgiving
+                  value: thanksgiving
+                - label: Christmas Eve
+                  value: christmas_eve
+                - label: Christmas Day
+                  value: christmas_day
+                - label: New Year's Eve
+                  value: new_years_eve
+                - label: Custom event 1
+                  value: custom_1
+                - label: Custom event 2
+                  value: custom_2
+                - label: Custom event 3
+                  value: custom_3
+                - label: Custom event 4
+                  value: custom_4
+                - label: Custom event 5
+                  value: custom_5
+                - label: Custom event 6
+                  value: custom_6
+                - label: Custom event 7
+                  value: custom_7
+                - label: Custom event 8
+                  value: custom_8
+                - label: Custom event 9
+                  value: custom_9
+                - label: Custom event 10
+                  value: custom_10
+                - label: Christmas rotation slot 1
+                  value: christmas_rot_1
+                - label: Christmas rotation slot 2
+                  value: christmas_rot_2
+                - label: Christmas rotation slot 3
+                  value: christmas_rot_3
+                - label: Christmas rotation slot 4
+                  value: christmas_rot_4
+                - label: Christmas rotation slot 5
+                  value: christmas_rot_5
+                - label: Christmas rotation slot 6
+                  value: christmas_rot_6
+                - label: Christmas rotation slot 7
+                  value: christmas_rot_7
+        debug_logbook:
+          name: Write scheduler decisions to Logbook
+          description: >
+            When enabled, important scheduler event changes are written to Home Assistant Logbook for
+            troubleshooting.
+          default: false
+          selector:
+            boolean:
+
+mode: restart
+max_exceeded: silent
+
+triggers:
+  - trigger: time_pattern
+    minutes: '/1'
+    id: scheduler_minute
+  - trigger: homeassistant
+    event: start
+    id: home_assistant_start
+
+variables:
+  scheduler_state_helper: !input scheduler_state_helper
+  illuminance_sensor: !input illuminance_sensor
+  irradiance_sensor: !input irradiance_sensor
+  period_1_enabled: !input period_1_enabled
+  period_1_start_mode: !input period_1_start_mode
+  period_1_start_time: !input period_1_start_time
+  period_1_start_offset: !input period_1_start_offset
+  period_1_start_lux: !input period_1_start_lux
+  period_1_start_irradiance: !input period_1_start_irradiance
+  period_1_end_mode: !input period_1_end_mode
+  period_1_end_time: !input period_1_end_time
+  period_1_end_offset: !input period_1_end_offset
+  period_1_end_lux: !input period_1_end_lux
+  period_1_end_irradiance: !input period_1_end_irradiance
+  period_2_enabled: !input period_2_enabled
+  period_2_start_mode: !input period_2_start_mode
+  period_2_start_time: !input period_2_start_time
+  period_2_start_offset: !input period_2_start_offset
+  period_2_start_lux: !input period_2_start_lux
+  period_2_start_irradiance: !input period_2_start_irradiance
+  period_2_end_mode: !input period_2_end_mode
+  period_2_end_time: !input period_2_end_time
+  period_2_end_offset: !input period_2_end_offset
+  period_2_end_lux: !input period_2_end_lux
+  period_2_end_irradiance: !input period_2_end_irradiance
+  period_3_enabled: !input period_3_enabled
+  period_3_start_mode: !input period_3_start_mode
+  period_3_start_time: !input period_3_start_time
+  period_3_start_offset: !input period_3_start_offset
+  period_3_start_lux: !input period_3_start_lux
+  period_3_start_irradiance: !input period_3_start_irradiance
+  period_3_end_mode: !input period_3_end_mode
+  period_3_end_time: !input period_3_end_time
+  period_3_end_offset: !input period_3_end_offset
+  period_3_end_lux: !input period_3_end_lux
+  period_3_end_irradiance: !input period_3_end_irradiance
+  weather_enabled: !input weather_enabled
+  weather_entity: !input weather_entity
+  weather_priority: !input weather_priority
+  forecast_hours: !input forecast_hours
+  weather_outside_schedule_enabled: !input weather_outside_schedule_enabled
+  weather_override_start_time: !input weather_override_start_time
+  weather_override_end_time: !input weather_override_end_time
+  heat_threshold: !input heat_threshold
+  freeze_threshold: !input freeze_threshold
+  seasonal_defaults_enabled: !input seasonal_defaults_enabled
+  test_mode: !input test_mode
+  test_event: !input test_event
+  debug_logbook: !input debug_logbook
+  periodic_reapply: !input periodic_reapply
+  new_years_day_before: !input new_years_day_before
+  new_years_day_after: !input new_years_day_after
+  mlk_day_before: !input mlk_day_before
+  mlk_day_after: !input mlk_day_after
+  valentines_day_before: !input valentines_day_before
+  valentines_day_after: !input valentines_day_after
+  presidents_day_before: !input presidents_day_before
+  presidents_day_after: !input presidents_day_after
+  st_patricks_day_before: !input st_patricks_day_before
+  st_patricks_day_after: !input st_patricks_day_after
+  easter_before: !input easter_before
+  easter_after: !input easter_after
+  mothers_day_before: !input mothers_day_before
+  mothers_day_after: !input mothers_day_after
+  memorial_day_before: !input memorial_day_before
+  memorial_day_after: !input memorial_day_after
+  fathers_day_before: !input fathers_day_before
+  fathers_day_after: !input fathers_day_after
+  juneteenth_before: !input juneteenth_before
+  juneteenth_after: !input juneteenth_after
+  independence_day_before: !input independence_day_before
+  independence_day_after: !input independence_day_after
+  labor_day_before: !input labor_day_before
+  labor_day_after: !input labor_day_after
+  halloween_before: !input halloween_before
+  halloween_after: !input halloween_after
+  veterans_day_before: !input veterans_day_before
+  veterans_day_after: !input veterans_day_after
+  thanksgiving_before: !input thanksgiving_before
+  thanksgiving_after: !input thanksgiving_after
+  christmas_eve_before: !input christmas_eve_before
+  christmas_eve_after: !input christmas_eve_after
+  christmas_day_before: !input christmas_day_before
+  christmas_day_after: !input christmas_day_after
+  christmas_rotation_start_date: !input christmas_rotation_start_date
+  christmas_rotation_end_date: !input christmas_rotation_end_date
+  christmas_rot_1_schedule_mode: !input christmas_rot_1_schedule_mode
+  christmas_rot_1_days: !input christmas_rot_1_days
+  christmas_rot_1_interval_days: !input christmas_rot_1_interval_days
+  christmas_rot_1_interval_anchor: !input christmas_rot_1_interval_anchor
+  christmas_rot_2_schedule_mode: !input christmas_rot_2_schedule_mode
+  christmas_rot_2_days: !input christmas_rot_2_days
+  christmas_rot_2_interval_days: !input christmas_rot_2_interval_days
+  christmas_rot_2_interval_anchor: !input christmas_rot_2_interval_anchor
+  christmas_rot_3_schedule_mode: !input christmas_rot_3_schedule_mode
+  christmas_rot_3_days: !input christmas_rot_3_days
+  christmas_rot_3_interval_days: !input christmas_rot_3_interval_days
+  christmas_rot_3_interval_anchor: !input christmas_rot_3_interval_anchor
+  christmas_rot_4_schedule_mode: !input christmas_rot_4_schedule_mode
+  christmas_rot_4_days: !input christmas_rot_4_days
+  christmas_rot_4_interval_days: !input christmas_rot_4_interval_days
+  christmas_rot_4_interval_anchor: !input christmas_rot_4_interval_anchor
+  christmas_rot_5_schedule_mode: !input christmas_rot_5_schedule_mode
+  christmas_rot_5_days: !input christmas_rot_5_days
+  christmas_rot_5_interval_days: !input christmas_rot_5_interval_days
+  christmas_rot_5_interval_anchor: !input christmas_rot_5_interval_anchor
+  christmas_rot_6_schedule_mode: !input christmas_rot_6_schedule_mode
+  christmas_rot_6_days: !input christmas_rot_6_days
+  christmas_rot_6_interval_days: !input christmas_rot_6_interval_days
+  christmas_rot_6_interval_anchor: !input christmas_rot_6_interval_anchor
+  christmas_rot_7_schedule_mode: !input christmas_rot_7_schedule_mode
+  christmas_rot_7_days: !input christmas_rot_7_days
+  christmas_rot_7_interval_days: !input christmas_rot_7_interval_days
+  christmas_rot_7_interval_anchor: !input christmas_rot_7_interval_anchor
+  new_years_eve_before: !input new_years_eve_before
+  new_years_eve_after: !input new_years_eve_after
+  custom_1_name: !input custom_1_name
+  custom_1_date: !input custom_1_date
+  custom_1_before: !input custom_1_before
+  custom_1_after: !input custom_1_after
+  custom_2_name: !input custom_2_name
+  custom_2_date: !input custom_2_date
+  custom_2_before: !input custom_2_before
+  custom_2_after: !input custom_2_after
+  custom_3_name: !input custom_3_name
+  custom_3_date: !input custom_3_date
+  custom_3_before: !input custom_3_before
+  custom_3_after: !input custom_3_after
+  custom_4_name: !input custom_4_name
+  custom_4_date: !input custom_4_date
+  custom_4_before: !input custom_4_before
+  custom_4_after: !input custom_4_after
+  custom_5_name: !input custom_5_name
+  custom_5_date: !input custom_5_date
+  custom_5_before: !input custom_5_before
+  custom_5_after: !input custom_5_after
+  custom_6_name: !input custom_6_name
+  custom_6_date: !input custom_6_date
+  custom_6_before: !input custom_6_before
+  custom_6_after: !input custom_6_after
+  custom_7_name: !input custom_7_name
+  custom_7_date: !input custom_7_date
+  custom_7_before: !input custom_7_before
+  custom_7_after: !input custom_7_after
+  custom_8_name: !input custom_8_name
+  custom_8_date: !input custom_8_date
+  custom_8_before: !input custom_8_before
+  custom_8_after: !input custom_8_after
+  custom_9_name: !input custom_9_name
+  custom_9_date: !input custom_9_date
+  custom_9_before: !input custom_9_before
+  custom_9_after: !input custom_9_after
+  custom_10_name: !input custom_10_name
+  custom_10_date: !input custom_10_date
+  custom_10_before: !input custom_10_before
+  custom_10_after: !input custom_10_after
+  startup_actions: !input startup_actions
+  shutdown_actions: !input shutdown_actions
+  additional_conditions: !input additional_conditions
+  normal_actions: !input normal_actions
+  rain_actions: !input rain_actions
+  snow_actions: !input snow_actions
+  heat_actions: !input heat_actions
+  freeze_actions: !input freeze_actions
+  spring_actions: !input spring_actions
+  summer_actions: !input summer_actions
+  fall_actions: !input fall_actions
+  winter_actions: !input winter_actions
+  new_years_day_actions: !input new_years_day_actions
+  mlk_day_actions: !input mlk_day_actions
+  valentines_day_actions: !input valentines_day_actions
+  presidents_day_actions: !input presidents_day_actions
+  st_patricks_day_actions: !input st_patricks_day_actions
+  easter_actions: !input easter_actions
+  mothers_day_actions: !input mothers_day_actions
+  memorial_day_actions: !input memorial_day_actions
+  fathers_day_actions: !input fathers_day_actions
+  juneteenth_actions: !input juneteenth_actions
+  independence_day_actions: !input independence_day_actions
+  labor_day_actions: !input labor_day_actions
+  halloween_actions: !input halloween_actions
+  veterans_day_actions: !input veterans_day_actions
+  thanksgiving_actions: !input thanksgiving_actions
+  christmas_eve_actions: !input christmas_eve_actions
+  christmas_day_actions: !input christmas_day_actions
+  new_years_eve_actions: !input new_years_eve_actions
+  custom_1_actions: !input custom_1_actions
+  custom_2_actions: !input custom_2_actions
+  custom_3_actions: !input custom_3_actions
+  custom_4_actions: !input custom_4_actions
+  custom_5_actions: !input custom_5_actions
+  custom_6_actions: !input custom_6_actions
+  custom_7_actions: !input custom_7_actions
+  custom_8_actions: !input custom_8_actions
+  custom_9_actions: !input custom_9_actions
+  custom_10_actions: !input custom_10_actions
+  christmas_rot_1_actions: !input christmas_rot_1_actions
+  christmas_rot_2_actions: !input christmas_rot_2_actions
+  christmas_rot_3_actions: !input christmas_rot_3_actions
+  christmas_rot_4_actions: !input christmas_rot_4_actions
+  christmas_rot_5_actions: !input christmas_rot_5_actions
+  christmas_rot_6_actions: !input christmas_rot_6_actions
+  christmas_rot_7_actions: !input christmas_rot_7_actions
+action:
+  # --- Manual test router ---
+  - choose:
+      - conditions:
+          - condition: template
+            value_template: >-
+              {% set tid = trigger.id if trigger is defined and trigger.id is defined else 'manual' %}
+              {{ test_mode != 'auto' and tid not in ['scheduler_minute','home_assistant_start'] }}
+        sequence:
+          - choose:
+              - conditions:
+                  - condition: template
+                    value_template: "{{ test_mode in ['event_only', 'startup_event'] and test_event == 'none' }}"
+                sequence:
+                  - stop: "Choose an Event to test, Save, then click Run actions again."
+          - choose:
+              - conditions:
+                  - condition: template
+                    value_template: "{{ test_mode == 'startup_only' }}"
+                sequence:
+                  - sequence: !input startup_actions
+              - conditions:
+                  - condition: template
+                    value_template: "{{ test_mode == 'event_only' }}"
+                sequence:
+                  - choose:
+                      - conditions:
+                          - condition: template
+                            value_template: "{{ test_event == 'normal' }}"
+                        sequence: !input normal_actions
+                      - conditions:
+                          - condition: template
+                            value_template: "{{ test_event == 'weather_rain' }}"
+                        sequence: !input rain_actions
+                      - conditions:
+                          - condition: template
+                            value_template: "{{ test_event == 'weather_snow' }}"
+                        sequence: !input snow_actions
+                      - conditions:
+                          - condition: template
+                            value_template: "{{ test_event == 'weather_heat' }}"
+                        sequence: !input heat_actions
+                      - conditions:
+                          - condition: template
+                            value_template: "{{ test_event == 'weather_freeze' }}"
+                        sequence: !input freeze_actions
+                      - conditions:
+                          - condition: template
+                            value_template: "{{ test_event == 'spring' }}"
+                        sequence: !input spring_actions
+                      - conditions:
+                          - condition: template
+                            value_template: "{{ test_event == 'summer' }}"
+                        sequence: !input summer_actions
+                      - conditions:
+                          - condition: template
+                            value_template: "{{ test_event == 'fall' }}"
+                        sequence: !input fall_actions
+                      - conditions:
+                          - condition: template
+                            value_template: "{{ test_event == 'winter' }}"
+                        sequence: !input winter_actions
+                      - conditions:
+                          - condition: template
+                            value_template: "{{ test_event == 'new_years_day' }}"
+                        sequence: !input new_years_day_actions
+                      - conditions:
+                          - condition: template
+                            value_template: "{{ test_event == 'mlk_day' }}"
+                        sequence: !input mlk_day_actions
+                      - conditions:
+                          - condition: template
+                            value_template: "{{ test_event == 'valentines_day' }}"
+                        sequence: !input valentines_day_actions
+                      - conditions:
+                          - condition: template
+                            value_template: "{{ test_event == 'presidents_day' }}"
+                        sequence: !input presidents_day_actions
+                      - conditions:
+                          - condition: template
+                            value_template: "{{ test_event == 'st_patricks_day' }}"
+                        sequence: !input st_patricks_day_actions
+                      - conditions:
+                          - condition: template
+                            value_template: "{{ test_event == 'easter' }}"
+                        sequence: !input easter_actions
+                      - conditions:
+                          - condition: template
+                            value_template: "{{ test_event == 'mothers_day' }}"
+                        sequence: !input mothers_day_actions
+                      - conditions:
+                          - condition: template
+                            value_template: "{{ test_event == 'memorial_day' }}"
+                        sequence: !input memorial_day_actions
+                      - conditions:
+                          - condition: template
+                            value_template: "{{ test_event == 'fathers_day' }}"
+                        sequence: !input fathers_day_actions
+                      - conditions:
+                          - condition: template
+                            value_template: "{{ test_event == 'juneteenth' }}"
+                        sequence: !input juneteenth_actions
+                      - conditions:
+                          - condition: template
+                            value_template: "{{ test_event == 'independence_day' }}"
+                        sequence: !input independence_day_actions
+                      - conditions:
+                          - condition: template
+                            value_template: "{{ test_event == 'labor_day' }}"
+                        sequence: !input labor_day_actions
+                      - conditions:
+                          - condition: template
+                            value_template: "{{ test_event == 'halloween' }}"
+                        sequence: !input halloween_actions
+                      - conditions:
+                          - condition: template
+                            value_template: "{{ test_event == 'veterans_day' }}"
+                        sequence: !input veterans_day_actions
+                      - conditions:
+                          - condition: template
+                            value_template: "{{ test_event == 'thanksgiving' }}"
+                        sequence: !input thanksgiving_actions
+                      - conditions:
+                          - condition: template
+                            value_template: "{{ test_event == 'christmas_eve' }}"
+                        sequence: !input christmas_eve_actions
+                      - conditions:
+                          - condition: template
+                            value_template: "{{ test_event == 'christmas_day' }}"
+                        sequence: !input christmas_day_actions
+                      - conditions:
+                          - condition: template
+                            value_template: "{{ test_event == 'new_years_eve' }}"
+                        sequence: !input new_years_eve_actions
+                      - conditions:
+                          - condition: template
+                            value_template: "{{ test_event == 'custom_1' }}"
+                        sequence: !input custom_1_actions
+                      - conditions:
+                          - condition: template
+                            value_template: "{{ test_event == 'custom_2' }}"
+                        sequence: !input custom_2_actions
+                      - conditions:
+                          - condition: template
+                            value_template: "{{ test_event == 'custom_3' }}"
+                        sequence: !input custom_3_actions
+                      - conditions:
+                          - condition: template
+                            value_template: "{{ test_event == 'custom_4' }}"
+                        sequence: !input custom_4_actions
+                      - conditions:
+                          - condition: template
+                            value_template: "{{ test_event == 'custom_5' }}"
+                        sequence: !input custom_5_actions
+                      - conditions:
+                          - condition: template
+                            value_template: "{{ test_event == 'custom_6' }}"
+                        sequence: !input custom_6_actions
+                      - conditions:
+                          - condition: template
+                            value_template: "{{ test_event == 'custom_7' }}"
+                        sequence: !input custom_7_actions
+                      - conditions:
+                          - condition: template
+                            value_template: "{{ test_event == 'custom_8' }}"
+                        sequence: !input custom_8_actions
+                      - conditions:
+                          - condition: template
+                            value_template: "{{ test_event == 'custom_9' }}"
+                        sequence: !input custom_9_actions
+                      - conditions:
+                          - condition: template
+                            value_template: "{{ test_event == 'custom_10' }}"
+                        sequence: !input custom_10_actions
+                      - conditions:
+                          - condition: template
+                            value_template: "{{ test_event == 'christmas_rot_1' }}"
+                        sequence: !input christmas_rot_1_actions
+                      - conditions:
+                          - condition: template
+                            value_template: "{{ test_event == 'christmas_rot_2' }}"
+                        sequence: !input christmas_rot_2_actions
+                      - conditions:
+                          - condition: template
+                            value_template: "{{ test_event == 'christmas_rot_3' }}"
+                        sequence: !input christmas_rot_3_actions
+                      - conditions:
+                          - condition: template
+                            value_template: "{{ test_event == 'christmas_rot_4' }}"
+                        sequence: !input christmas_rot_4_actions
+                      - conditions:
+                          - condition: template
+                            value_template: "{{ test_event == 'christmas_rot_5' }}"
+                        sequence: !input christmas_rot_5_actions
+                      - conditions:
+                          - condition: template
+                            value_template: "{{ test_event == 'christmas_rot_6' }}"
+                        sequence: !input christmas_rot_6_actions
+                      - conditions:
+                          - condition: template
+                            value_template: "{{ test_event == 'christmas_rot_7' }}"
+                        sequence: !input christmas_rot_7_actions
+                    default: []
+              - conditions:
+                  - condition: template
+                    value_template: "{{ test_mode == 'startup_event' }}"
+                sequence:
+                  - sequence: !input startup_actions
+                  - choose:
+                      - conditions:
+                          - condition: template
+                            value_template: "{{ test_event == 'normal' }}"
+                        sequence: !input normal_actions
+                      - conditions:
+                          - condition: template
+                            value_template: "{{ test_event == 'weather_rain' }}"
+                        sequence: !input rain_actions
+                      - conditions:
+                          - condition: template
+                            value_template: "{{ test_event == 'weather_snow' }}"
+                        sequence: !input snow_actions
+                      - conditions:
+                          - condition: template
+                            value_template: "{{ test_event == 'weather_heat' }}"
+                        sequence: !input heat_actions
+                      - conditions:
+                          - condition: template
+                            value_template: "{{ test_event == 'weather_freeze' }}"
+                        sequence: !input freeze_actions
+                      - conditions:
+                          - condition: template
+                            value_template: "{{ test_event == 'spring' }}"
+                        sequence: !input spring_actions
+                      - conditions:
+                          - condition: template
+                            value_template: "{{ test_event == 'summer' }}"
+                        sequence: !input summer_actions
+                      - conditions:
+                          - condition: template
+                            value_template: "{{ test_event == 'fall' }}"
+                        sequence: !input fall_actions
+                      - conditions:
+                          - condition: template
+                            value_template: "{{ test_event == 'winter' }}"
+                        sequence: !input winter_actions
+                      - conditions:
+                          - condition: template
+                            value_template: "{{ test_event == 'new_years_day' }}"
+                        sequence: !input new_years_day_actions
+                      - conditions:
+                          - condition: template
+                            value_template: "{{ test_event == 'mlk_day' }}"
+                        sequence: !input mlk_day_actions
+                      - conditions:
+                          - condition: template
+                            value_template: "{{ test_event == 'valentines_day' }}"
+                        sequence: !input valentines_day_actions
+                      - conditions:
+                          - condition: template
+                            value_template: "{{ test_event == 'presidents_day' }}"
+                        sequence: !input presidents_day_actions
+                      - conditions:
+                          - condition: template
+                            value_template: "{{ test_event == 'st_patricks_day' }}"
+                        sequence: !input st_patricks_day_actions
+                      - conditions:
+                          - condition: template
+                            value_template: "{{ test_event == 'easter' }}"
+                        sequence: !input easter_actions
+                      - conditions:
+                          - condition: template
+                            value_template: "{{ test_event == 'mothers_day' }}"
+                        sequence: !input mothers_day_actions
+                      - conditions:
+                          - condition: template
+                            value_template: "{{ test_event == 'memorial_day' }}"
+                        sequence: !input memorial_day_actions
+                      - conditions:
+                          - condition: template
+                            value_template: "{{ test_event == 'fathers_day' }}"
+                        sequence: !input fathers_day_actions
+                      - conditions:
+                          - condition: template
+                            value_template: "{{ test_event == 'juneteenth' }}"
+                        sequence: !input juneteenth_actions
+                      - conditions:
+                          - condition: template
+                            value_template: "{{ test_event == 'independence_day' }}"
+                        sequence: !input independence_day_actions
+                      - conditions:
+                          - condition: template
+                            value_template: "{{ test_event == 'labor_day' }}"
+                        sequence: !input labor_day_actions
+                      - conditions:
+                          - condition: template
+                            value_template: "{{ test_event == 'halloween' }}"
+                        sequence: !input halloween_actions
+                      - conditions:
+                          - condition: template
+                            value_template: "{{ test_event == 'veterans_day' }}"
+                        sequence: !input veterans_day_actions
+                      - conditions:
+                          - condition: template
+                            value_template: "{{ test_event == 'thanksgiving' }}"
+                        sequence: !input thanksgiving_actions
+                      - conditions:
+                          - condition: template
+                            value_template: "{{ test_event == 'christmas_eve' }}"
+                        sequence: !input christmas_eve_actions
+                      - conditions:
+                          - condition: template
+                            value_template: "{{ test_event == 'christmas_day' }}"
+                        sequence: !input christmas_day_actions
+                      - conditions:
+                          - condition: template
+                            value_template: "{{ test_event == 'new_years_eve' }}"
+                        sequence: !input new_years_eve_actions
+                      - conditions:
+                          - condition: template
+                            value_template: "{{ test_event == 'custom_1' }}"
+                        sequence: !input custom_1_actions
+                      - conditions:
+                          - condition: template
+                            value_template: "{{ test_event == 'custom_2' }}"
+                        sequence: !input custom_2_actions
+                      - conditions:
+                          - condition: template
+                            value_template: "{{ test_event == 'custom_3' }}"
+                        sequence: !input custom_3_actions
+                      - conditions:
+                          - condition: template
+                            value_template: "{{ test_event == 'custom_4' }}"
+                        sequence: !input custom_4_actions
+                      - conditions:
+                          - condition: template
+                            value_template: "{{ test_event == 'custom_5' }}"
+                        sequence: !input custom_5_actions
+                      - conditions:
+                          - condition: template
+                            value_template: "{{ test_event == 'custom_6' }}"
+                        sequence: !input custom_6_actions
+                      - conditions:
+                          - condition: template
+                            value_template: "{{ test_event == 'custom_7' }}"
+                        sequence: !input custom_7_actions
+                      - conditions:
+                          - condition: template
+                            value_template: "{{ test_event == 'custom_8' }}"
+                        sequence: !input custom_8_actions
+                      - conditions:
+                          - condition: template
+                            value_template: "{{ test_event == 'custom_9' }}"
+                        sequence: !input custom_9_actions
+                      - conditions:
+                          - condition: template
+                            value_template: "{{ test_event == 'custom_10' }}"
+                        sequence: !input custom_10_actions
+                      - conditions:
+                          - condition: template
+                            value_template: "{{ test_event == 'christmas_rot_1' }}"
+                        sequence: !input christmas_rot_1_actions
+                      - conditions:
+                          - condition: template
+                            value_template: "{{ test_event == 'christmas_rot_2' }}"
+                        sequence: !input christmas_rot_2_actions
+                      - conditions:
+                          - condition: template
+                            value_template: "{{ test_event == 'christmas_rot_3' }}"
+                        sequence: !input christmas_rot_3_actions
+                      - conditions:
+                          - condition: template
+                            value_template: "{{ test_event == 'christmas_rot_4' }}"
+                        sequence: !input christmas_rot_4_actions
+                      - conditions:
+                          - condition: template
+                            value_template: "{{ test_event == 'christmas_rot_5' }}"
+                        sequence: !input christmas_rot_5_actions
+                      - conditions:
+                          - condition: template
+                            value_template: "{{ test_event == 'christmas_rot_6' }}"
+                        sequence: !input christmas_rot_6_actions
+                      - conditions:
+                          - condition: template
+                            value_template: "{{ test_event == 'christmas_rot_7' }}"
+                        sequence: !input christmas_rot_7_actions
+                    default: []
+              - conditions:
+                  - condition: template
+                    value_template: "{{ test_mode == 'shutdown_only' }}"
+                sequence:
+                  - sequence: !input shutdown_actions
+          - stop: "Test completed. Return Test mode to Automatic — Normal scheduler operation and Save."
+
+  # Automatic executions do nothing while a test mode is armed.
+  - condition: template
+    value_template: "{{ test_mode == 'auto' }}"
+
+  # A state helper is required for deduplication.
+  - condition: template
+    value_template: "{{ scheduler_state_helper | trim != '' }}"
+
+  # Optional user conditions apply only to automatic scheduling.
+  - condition: and
+    conditions: !input additional_conditions
+
+  # Fetch hourly forecasts only when weather is configured.
+  - choose:
+      - conditions:
+          - condition: template
+            value_template: "{{ weather_enabled and weather_entity | trim != '' }}"
+        sequence:
+          - action: weather.get_forecasts
+            target:
+              entity_id: !input weather_entity
+            data:
+              type: hourly
+            response_variable: weather_response
+    default:
+      - variables:
+          weather_response: {}
+
+  - variables:
+      active_window: >-
+        {% set n = now() %}
+        {% set lux_ok = illuminance_sensor | trim != '' and states(illuminance_sensor) not in ['unknown','unavailable','none',''] %}
+        {% set lux = states(illuminance_sensor) | float(999999) %}
+        {% set irr_ok = irradiance_sensor | trim != '' and states(irradiance_sensor) not in ['unknown','unavailable','none',''] %}
+        {% set irr = states(irradiance_sensor) | float(999999) %}
+        {% set next_rise = as_local(as_datetime(state_attr('sun.sun','next_rising'))) %}
+        {% set next_set = as_local(as_datetime(state_attr('sun.sun','next_setting'))) %}
+        {% set periods = [
+          [1, period_1_enabled, period_1_start_mode, period_1_start_time, period_1_start_offset, period_1_start_lux, period_1_start_irradiance, period_1_end_mode, period_1_end_time, period_1_end_offset, period_1_end_lux, period_1_end_irradiance],
+          [2, period_2_enabled, period_2_start_mode, period_2_start_time, period_2_start_offset, period_2_start_lux, period_2_start_irradiance, period_2_end_mode, period_2_end_time, period_2_end_offset, period_2_end_lux, period_2_end_irradiance],
+          [3, period_3_enabled, period_3_start_mode, period_3_start_time, period_3_start_offset, period_3_start_lux, period_3_start_irradiance, period_3_end_mode, period_3_end_time, period_3_end_offset, period_3_end_lux, period_3_end_irradiance]
+        ] %}
+        {% set ns = namespace(result='off') %}
+        {% for p in periods if p[1] %}
+          {% set starts = namespace(items=[]) %}
+          {% set ends = namespace(items=[]) %}
+          {% for d in [-2,-1,0,1,2] %}
+            {% if p[2] == 'fixed' %}{% set starts.items = starts.items + [today_at(p[3]) + timedelta(days=d)] %}
+            {% elif p[2] == 'sunrise' %}{% set starts.items = starts.items + [next_rise + timedelta(days=d-1, minutes=p[4]|int)] %}
+            {% elif p[2] == 'sunset' %}{% set starts.items = starts.items + [next_set + timedelta(days=d-1, minutes=p[4]|int)] %}{% endif %}
+            {% if p[7] == 'fixed' %}{% set ends.items = ends.items + [today_at(p[8]) + timedelta(days=d)] %}
+            {% elif p[7] == 'sunrise' %}{% set ends.items = ends.items + [next_rise + timedelta(days=d-1, minutes=p[9]|int)] %}
+            {% elif p[7] == 'sunset' %}{% set ends.items = ends.items + [next_set + timedelta(days=d-1, minutes=p[9]|int)] %}{% endif %}
+          {% endfor %}
+          {% if p[2] in ['illuminance','irradiance'] %}
+            {% set starts.items = [today_at('12:00:00') - timedelta(days=1), today_at('12:00:00')] %}
+          {% endif %}
+          {% for st in starts.items %}
+            {% set ea = namespace(value=none) %}
+            {% if p[7] not in ['illuminance','irradiance'] %}
+              {% for candidate in ends.items | sort if candidate > st and ea.value is none %}{% set ea.value = candidate %}{% endfor %}
+            {% endif %}
+            {% set start_met = (p[2] not in ['illuminance','irradiance']) or (p[2] == 'illuminance' and lux_ok and lux <= p[5]|float) or (p[2] == 'irradiance' and irr_ok and irr <= p[6]|float) %}
+            {% if p[7] in ['illuminance','irradiance'] %}
+              {% set end_met = (p[7] == 'illuminance' and lux_ok and lux < p[10]|float) or (p[7] == 'irradiance' and irr_ok and irr < p[11]|float) %}
+              {% if start_met and end_met and st <= n < st + timedelta(days=1) %}{% set ns.result = 'period_' ~ p[0] %}{% endif %}
+            {% elif ea.value is not none and start_met and st <= n < ea.value %}{% set ns.result = 'period_' ~ p[0] %}{% endif %}
+          {% endfor %}
+        {% endfor %}
+        {{ ns.result }}
+      in_daily_window: "{{ active_window != 'off' }}"
+      weather_event_key: >-
+        {% if not weather_enabled or weather_entity | trim == '' %}{{ '' }}
+        {% else %}
+          {% set forecasts = weather_response.get(weather_entity, {}).get('forecast', []) %}
+          {% set upcoming = forecasts[:forecast_hours|int] %}
+          {% set conditions = upcoming | map(attribute='condition') | list %}
+          {% set temps = upcoming | selectattr('temperature','defined') | map(attribute='temperature') | list %}
+          {% set rain_conditions = ['rainy','pouring','lightning-rainy'] %}
+          {% set snow_conditions = ['snowy','snowy-rainy'] %}
+          {% if conditions | select('in', snow_conditions) | list | count > 0 and snow_actions | count > 0 %}weather_snow
+          {% elif conditions | select('in', rain_conditions) | list | count > 0 and rain_actions | count > 0 %}weather_rain
+          {% elif temps | count > 0 and temps | max >= heat_threshold|float and heat_actions | count > 0 %}weather_heat
+          {% elif temps | count > 0 and temps | min <= freeze_threshold|float and freeze_actions | count > 0 %}weather_freeze
+          {% else %}{{ '' }}{% endif %}
+        {% endif %}
+      weather_override_time_allowed: >-
+        {% set n = now() %}
+        {% set s = today_at(weather_override_start_time) %}
+        {% set e = today_at(weather_override_end_time) %}
+        {% if e <= s %}{{ n >= s or n < e }}
+        {% else %}{{ s <= n < e }}{% endif %}
+      calendar_event_key: >-
+        {% set ns = namespace(matches=[]) %}
+        {% set y = now().year %}
+        {% set today = now().date() %}
+        {% set aa = y % 19 %}{% set bb = y // 100 %}{% set cc = y % 100 %}
+        {% set dd = bb // 4 %}{% set ee = bb % 4 %}{% set ff = (bb + 8) // 25 %}
+        {% set gg = (bb - ff + 1) // 3 %}{% set hh = (19*aa + bb - dd - gg + 15) % 30 %}
+        {% set ii = cc // 4 %}{% set kk = cc % 4 %}{% set ll = (32 + 2*ee + 2*ii - hh - kk) % 7 %}
+        {% set mm = (aa + 11*hh + 22*ll) // 451 %}
+        {% set em = (hh + ll - 7*mm + 114) // 31 %}
+        {% set ed = ((hh + ll - 7*mm + 114) % 31) + 1 %}
+        {% set easter_date = strptime('%04d-%02d-%02d' | format(y,em,ed),'%Y-%m-%d').date() %}
+        {% set events = [] %}
+        {% if new_years_day_actions | count > 0 %}{% set events = events + [[0, strptime('%04d-01-01' | format(y), '%Y-%m-%d').date(), new_years_day_before|int, new_years_day_after|int, 'new_years_day']] %}{% endif %}
+        {% if mlk_day_actions | count > 0 %}{% set events = events + [[1, (strptime('%04d-01-01' | format(y), '%Y-%m-%d').date() + timedelta(days=((0 - strptime('%04d-01-01' | format(y), '%Y-%m-%d').date().weekday()) % 7) + 7*(3-1))), mlk_day_before|int, mlk_day_after|int, 'mlk_day']] %}{% endif %}
+        {% if valentines_day_actions | count > 0 %}{% set events = events + [[2, strptime('%04d-02-14' | format(y), '%Y-%m-%d').date(), valentines_day_before|int, valentines_day_after|int, 'valentines_day']] %}{% endif %}
+        {% if presidents_day_actions | count > 0 %}{% set events = events + [[3, (strptime('%04d-02-01' | format(y), '%Y-%m-%d').date() + timedelta(days=((0 - strptime('%04d-02-01' | format(y), '%Y-%m-%d').date().weekday()) % 7) + 7*(3-1))), presidents_day_before|int, presidents_day_after|int, 'presidents_day']] %}{% endif %}
+        {% if st_patricks_day_actions | count > 0 %}{% set events = events + [[4, strptime('%04d-03-17' | format(y), '%Y-%m-%d').date(), st_patricks_day_before|int, st_patricks_day_after|int, 'st_patricks_day']] %}{% endif %}
+        {% if easter_actions | count > 0 %}{% set events = events + [[5, easter_date, easter_before|int, easter_after|int, 'easter']] %}{% endif %}
+        {% if mothers_day_actions | count > 0 %}{% set events = events + [[6, (strptime('%04d-05-01' | format(y), '%Y-%m-%d').date() + timedelta(days=((6 - strptime('%04d-05-01' | format(y), '%Y-%m-%d').date().weekday()) % 7) + 7*(2-1))), mothers_day_before|int, mothers_day_after|int, 'mothers_day']] %}{% endif %}
+        {% if memorial_day_actions | count > 0 %}{% set events = events + [[7, ((strptime('%04d-06-01' | format(y), '%Y-%m-%d').date() - timedelta(days=1)) - timedelta(days=((strptime('%04d-06-01' | format(y), '%Y-%m-%d').date() - timedelta(days=1)).weekday() - 0) % 7)), memorial_day_before|int, memorial_day_after|int, 'memorial_day']] %}{% endif %}
+        {% if fathers_day_actions | count > 0 %}{% set events = events + [[8, (strptime('%04d-06-01' | format(y), '%Y-%m-%d').date() + timedelta(days=((6 - strptime('%04d-06-01' | format(y), '%Y-%m-%d').date().weekday()) % 7) + 7*(3-1))), fathers_day_before|int, fathers_day_after|int, 'fathers_day']] %}{% endif %}
+        {% if juneteenth_actions | count > 0 %}{% set events = events + [[9, strptime('%04d-06-19' | format(y), '%Y-%m-%d').date(), juneteenth_before|int, juneteenth_after|int, 'juneteenth']] %}{% endif %}
+        {% if independence_day_actions | count > 0 %}{% set events = events + [[10, strptime('%04d-07-04' | format(y), '%Y-%m-%d').date(), independence_day_before|int, independence_day_after|int, 'independence_day']] %}{% endif %}
+        {% if labor_day_actions | count > 0 %}{% set events = events + [[11, (strptime('%04d-09-01' | format(y), '%Y-%m-%d').date() + timedelta(days=((0 - strptime('%04d-09-01' | format(y), '%Y-%m-%d').date().weekday()) % 7) + 7*(1-1))), labor_day_before|int, labor_day_after|int, 'labor_day']] %}{% endif %}
+        {% if halloween_actions | count > 0 %}{% set events = events + [[12, strptime('%04d-10-31' | format(y), '%Y-%m-%d').date(), halloween_before|int, halloween_after|int, 'halloween']] %}{% endif %}
+        {% if veterans_day_actions | count > 0 %}{% set events = events + [[13, strptime('%04d-11-11' | format(y), '%Y-%m-%d').date(), veterans_day_before|int, veterans_day_after|int, 'veterans_day']] %}{% endif %}
+        {% if thanksgiving_actions | count > 0 %}{% set events = events + [[14, (strptime('%04d-11-01' | format(y), '%Y-%m-%d').date() + timedelta(days=((3 - strptime('%04d-11-01' | format(y), '%Y-%m-%d').date().weekday()) % 7) + 7*(4-1))), thanksgiving_before|int, thanksgiving_after|int, 'thanksgiving']] %}{% endif %}
+        {% if christmas_eve_actions | count > 0 %}{% set events = events + [[15, strptime('%04d-12-24' | format(y), '%Y-%m-%d').date(), christmas_eve_before|int, christmas_eve_after|int, 'christmas_eve']] %}{% endif %}
+        {% if christmas_day_actions | count > 0 %}{% set events = events + [[16, strptime('%04d-12-25' | format(y), '%Y-%m-%d').date(), christmas_day_before|int, christmas_day_after|int, 'christmas_day']] %}{% endif %}
+        {% if new_years_eve_actions | count > 0 %}{% set events = events + [[17, strptime('%04d-12-31' | format(y), '%Y-%m-%d').date(), new_years_eve_before|int, new_years_eve_after|int, 'new_years_eve']] %}{% endif %}
+        {% if custom_1_date | regex_match('^\\d{2}-\\d{2}$') and custom_1_actions | count > 0 %}
+          {% set cd = strptime('%04d-%s' | format(y,custom_1_date),'%Y-%m-%d').date() %}
+          {% set events = events + [[101, cd, custom_1_before|int, custom_1_after|int, 'custom_1']] %}
+        {% endif %}
+        {% if custom_2_date | regex_match('^\\d{2}-\\d{2}$') and custom_2_actions | count > 0 %}
+          {% set cd = strptime('%04d-%s' | format(y,custom_2_date),'%Y-%m-%d').date() %}
+          {% set events = events + [[102, cd, custom_2_before|int, custom_2_after|int, 'custom_2']] %}
+        {% endif %}
+        {% if custom_3_date | regex_match('^\\d{2}-\\d{2}$') and custom_3_actions | count > 0 %}
+          {% set cd = strptime('%04d-%s' | format(y,custom_3_date),'%Y-%m-%d').date() %}
+          {% set events = events + [[103, cd, custom_3_before|int, custom_3_after|int, 'custom_3']] %}
+        {% endif %}
+        {% if custom_4_date | regex_match('^\\d{2}-\\d{2}$') and custom_4_actions | count > 0 %}
+          {% set cd = strptime('%04d-%s' | format(y,custom_4_date),'%Y-%m-%d').date() %}
+          {% set events = events + [[104, cd, custom_4_before|int, custom_4_after|int, 'custom_4']] %}
+        {% endif %}
+        {% if custom_5_date | regex_match('^\\d{2}-\\d{2}$') and custom_5_actions | count > 0 %}
+          {% set cd = strptime('%04d-%s' | format(y,custom_5_date),'%Y-%m-%d').date() %}
+          {% set events = events + [[105, cd, custom_5_before|int, custom_5_after|int, 'custom_5']] %}
+        {% endif %}
+        {% if custom_6_date | regex_match('^\\d{2}-\\d{2}$') and custom_6_actions | count > 0 %}
+          {% set cd = strptime('%04d-%s' | format(y,custom_6_date),'%Y-%m-%d').date() %}
+          {% set events = events + [[106, cd, custom_6_before|int, custom_6_after|int, 'custom_6']] %}
+        {% endif %}
+        {% if custom_7_date | regex_match('^\\d{2}-\\d{2}$') and custom_7_actions | count > 0 %}
+          {% set cd = strptime('%04d-%s' | format(y,custom_7_date),'%Y-%m-%d').date() %}
+          {% set events = events + [[107, cd, custom_7_before|int, custom_7_after|int, 'custom_7']] %}
+        {% endif %}
+        {% if custom_8_date | regex_match('^\\d{2}-\\d{2}$') and custom_8_actions | count > 0 %}
+          {% set cd = strptime('%04d-%s' | format(y,custom_8_date),'%Y-%m-%d').date() %}
+          {% set events = events + [[108, cd, custom_8_before|int, custom_8_after|int, 'custom_8']] %}
+        {% endif %}
+        {% if custom_9_date | regex_match('^\\d{2}-\\d{2}$') and custom_9_actions | count > 0 %}
+          {% set cd = strptime('%04d-%s' | format(y,custom_9_date),'%Y-%m-%d').date() %}
+          {% set events = events + [[109, cd, custom_9_before|int, custom_9_after|int, 'custom_9']] %}
+        {% endif %}
+        {% if custom_10_date | regex_match('^\\d{2}-\\d{2}$') and custom_10_actions | count > 0 %}
+          {% set cd = strptime('%04d-%s' | format(y,custom_10_date),'%Y-%m-%d').date() %}
+          {% set events = events + [[110, cd, custom_10_before|int, custom_10_after|int, 'custom_10']] %}
+        {% endif %}
+        {% set rot_actions_counts = [christmas_rot_1_actions|count, christmas_rot_2_actions|count, christmas_rot_3_actions|count, christmas_rot_4_actions|count, christmas_rot_5_actions|count, christmas_rot_6_actions|count, christmas_rot_7_actions|count] %}
+        {% if christmas_rotation_start_date | regex_match('^\\d{2}-\\d{2}$') and christmas_rotation_end_date | regex_match('^\\d{2}-\\d{2}$') and (rot_actions_counts | max) > 0 %}
+          {% set rot_start = strptime('%04d-%s' | format(y, christmas_rotation_start_date), '%Y-%m-%d').date() %}
+          {% set rot_end = strptime('%04d-%s' | format(y, christmas_rotation_end_date), '%Y-%m-%d').date() %}
+          {% set in_christmas_season = (rot_start <= today <= rot_end) if rot_end >= rot_start else (today >= rot_start or today <= rot_end) %}
+        {% else %}
+          {% set in_christmas_season = false %}
+        {% endif %}
+        {% if in_christmas_season %}
+          {% set dow_codes = ['mon','tue','wed','thu','fri','sat','sun'] %}
+          {% set today_dow = dow_codes[today.weekday()] %}
+          {% if christmas_rot_1_actions | count > 0 and ((christmas_rot_1_schedule_mode == 'day_of_week' and today_dow in christmas_rot_1_days) or (christmas_rot_1_schedule_mode == 'interval' and christmas_rot_1_interval_anchor | trim != '' and (today - strptime(christmas_rot_1_interval_anchor, '%Y-%m-%d').date()).days % (christmas_rot_1_interval_days|int) == 0)) %}
+            {% set events = events + [[120, today, 0, 0, 'christmas_rot_1']] %}
+          {% endif %}
+          {% if christmas_rot_2_actions | count > 0 and ((christmas_rot_2_schedule_mode == 'day_of_week' and today_dow in christmas_rot_2_days) or (christmas_rot_2_schedule_mode == 'interval' and christmas_rot_2_interval_anchor | trim != '' and (today - strptime(christmas_rot_2_interval_anchor, '%Y-%m-%d').date()).days % (christmas_rot_2_interval_days|int) == 0)) %}
+            {% set events = events + [[121, today, 0, 0, 'christmas_rot_2']] %}
+          {% endif %}
+          {% if christmas_rot_3_actions | count > 0 and ((christmas_rot_3_schedule_mode == 'day_of_week' and today_dow in christmas_rot_3_days) or (christmas_rot_3_schedule_mode == 'interval' and christmas_rot_3_interval_anchor | trim != '' and (today - strptime(christmas_rot_3_interval_anchor, '%Y-%m-%d').date()).days % (christmas_rot_3_interval_days|int) == 0)) %}
+            {% set events = events + [[122, today, 0, 0, 'christmas_rot_3']] %}
+          {% endif %}
+          {% if christmas_rot_4_actions | count > 0 and ((christmas_rot_4_schedule_mode == 'day_of_week' and today_dow in christmas_rot_4_days) or (christmas_rot_4_schedule_mode == 'interval' and christmas_rot_4_interval_anchor | trim != '' and (today - strptime(christmas_rot_4_interval_anchor, '%Y-%m-%d').date()).days % (christmas_rot_4_interval_days|int) == 0)) %}
+            {% set events = events + [[123, today, 0, 0, 'christmas_rot_4']] %}
+          {% endif %}
+          {% if christmas_rot_5_actions | count > 0 and ((christmas_rot_5_schedule_mode == 'day_of_week' and today_dow in christmas_rot_5_days) or (christmas_rot_5_schedule_mode == 'interval' and christmas_rot_5_interval_anchor | trim != '' and (today - strptime(christmas_rot_5_interval_anchor, '%Y-%m-%d').date()).days % (christmas_rot_5_interval_days|int) == 0)) %}
+            {% set events = events + [[124, today, 0, 0, 'christmas_rot_5']] %}
+          {% endif %}
+          {% if christmas_rot_6_actions | count > 0 and ((christmas_rot_6_schedule_mode == 'day_of_week' and today_dow in christmas_rot_6_days) or (christmas_rot_6_schedule_mode == 'interval' and christmas_rot_6_interval_anchor | trim != '' and (today - strptime(christmas_rot_6_interval_anchor, '%Y-%m-%d').date()).days % (christmas_rot_6_interval_days|int) == 0)) %}
+            {% set events = events + [[125, today, 0, 0, 'christmas_rot_6']] %}
+          {% endif %}
+          {% if christmas_rot_7_actions | count > 0 and ((christmas_rot_7_schedule_mode == 'day_of_week' and today_dow in christmas_rot_7_days) or (christmas_rot_7_schedule_mode == 'interval' and christmas_rot_7_interval_anchor | trim != '' and (today - strptime(christmas_rot_7_interval_anchor, '%Y-%m-%d').date()).days % (christmas_rot_7_interval_days|int) == 0)) %}
+            {% set events = events + [[126, today, 0, 0, 'christmas_rot_7']] %}
+          {% endif %}
+        {% endif %}
+        {% for item in events %}
+          {% set delta = (today - item[1]).days %}
+          {% if delta >= (0-item[2]) and delta <= item[3] %}
+            {% set ns.matches = ns.matches + [[item[0], delta|abs, item[4]]] %}
+          {% endif %}
+        {% endfor %}
+        {% if ns.matches|count > 0 %}{{ (ns.matches|sort(attribute=1)|first)[2] }}
+        {% else %}{{ '' }}{% endif %}
+      seasonal_event_key: >-
+        {% if not seasonal_defaults_enabled %}{{ '' }}
+        {% elif now().month in [3,4,5] and spring_actions|count > 0 %}spring
+        {% elif now().month in [6,7,8] and summer_actions|count > 0 %}summer
+        {% elif now().month in [9,10,11] and fall_actions|count > 0 %}fall
+        {% elif winter_actions|count > 0 %}winter
+        {% else %}{{ '' }}{% endif %}
+      weather_schedule_override_active: >-
+        {{ weather_outside_schedule_enabled
+           and not in_daily_window
+           and weather_override_time_allowed
+           and weather_event_key | trim != '' }}
+      should_be_on: "{{ in_daily_window or weather_schedule_override_active }}"
+      event_action_key: >-
+        {% if weather_schedule_override_active %}{{ weather_event_key }}
+        {% elif weather_priority == 'weather' and weather_event_key|trim != '' %}{{ weather_event_key }}
+        {% elif calendar_event_key|trim != '' %}{{ calendar_event_key }}
+        {% elif weather_event_key|trim != '' %}{{ weather_event_key }}
+        {% elif seasonal_event_key|trim != '' %}{{ seasonal_event_key }}
+        {% else %}normal{% endif %}
+      trigger_id: "{{ trigger.id if trigger is defined and trigger.id is defined else 'manual' }}"
+      previous_event_key: "{{ states(scheduler_state_helper) }}"
+      lighting_window_started: >-
+        {% set n = now() %}
+        {% set next_rise = as_local(as_datetime(state_attr('sun.sun','next_rising'))) %}
+        {% set next_set = as_local(as_datetime(state_attr('sun.sun','next_setting'))) %}
+        {% set periods = [
+          [period_1_enabled, period_1_start_mode, period_1_start_time, period_1_start_offset],
+          [period_2_enabled, period_2_start_mode, period_2_start_time, period_2_start_offset],
+          [period_3_enabled, period_3_start_mode, period_3_start_time, period_3_start_offset]
+        ] %}
+        {% set ns = namespace(hit=false) %}
+        {% if trigger_id == 'scheduler_minute' %}
+          {% for p in periods if p[0] and p[1] in ['fixed','sunrise','sunset'] %}
+            {% for d in [-2,-1,0,1,2] %}
+              {% if p[1] == 'fixed' %}{% set st = today_at(p[2]) + timedelta(days=d) %}
+              {% elif p[1] == 'sunrise' %}{% set st = next_rise + timedelta(days=d-1, minutes=p[3]|int) %}
+              {% else %}{% set st = next_set + timedelta(days=d-1, minutes=p[3]|int) %}{% endif %}
+              {% if n - timedelta(seconds=60) < st <= n %}{% set ns.hit = true %}{% endif %}
+            {% endfor %}
+          {% endfor %}
+        {% endif %}
+        {{ ns.hit }}
+      home_assistant_reapply: "{{ trigger_id == 'home_assistant_start' }}"
+      periodic_reapply_due: >-
+        {% set interval = periodic_reapply | int(0) %}
+        {{ trigger_id == 'scheduler_minute'
+           and interval > 0
+           and ((as_timestamp(now()) | int // 60) % interval == 0) }}
+      force_startup_reapply: "{{ home_assistant_reapply or lighting_window_started }}"
+      force_event_reapply: "{{ force_startup_reapply or periodic_reapply_due }}"
+      event_apply_reason: >-
+        {% if home_assistant_reapply %}Home Assistant start
+        {% elif lighting_window_started %}lighting window start
+        {% elif periodic_reapply_due %}periodic reapply
+        {% elif event_action_key != previous_event_key %}event change
+        {% else %}none{% endif %}
+
+  # Turn on / change event.
+  - choose:
+      - conditions:
+          - condition: template
+            value_template: "{{ should_be_on }}"
+        sequence:
+          - choose:
+              - conditions:
+                  - condition: template
+                    value_template: "{{ previous_event_key in ['off','unknown','unavailable',''] or force_startup_reapply }}"
+                sequence:
+                  - sequence: !input startup_actions
+          - choose:
+              - conditions:
+                  - condition: template
+                    value_template: "{{ event_action_key != previous_event_key or force_event_reapply }}"
+                sequence:
+                  - choose:
+                      - conditions:
+                          - condition: template
+                            value_template: "{{ event_action_key == 'normal' }}"
+                        sequence: !input normal_actions
+                      - conditions:
+                          - condition: template
+                            value_template: "{{ event_action_key == 'weather_rain' }}"
+                        sequence: !input rain_actions
+                      - conditions:
+                          - condition: template
+                            value_template: "{{ event_action_key == 'weather_snow' }}"
+                        sequence: !input snow_actions
+                      - conditions:
+                          - condition: template
+                            value_template: "{{ event_action_key == 'weather_heat' }}"
+                        sequence: !input heat_actions
+                      - conditions:
+                          - condition: template
+                            value_template: "{{ event_action_key == 'weather_freeze' }}"
+                        sequence: !input freeze_actions
+                      - conditions:
+                          - condition: template
+                            value_template: "{{ event_action_key == 'spring' }}"
+                        sequence: !input spring_actions
+                      - conditions:
+                          - condition: template
+                            value_template: "{{ event_action_key == 'summer' }}"
+                        sequence: !input summer_actions
+                      - conditions:
+                          - condition: template
+                            value_template: "{{ event_action_key == 'fall' }}"
+                        sequence: !input fall_actions
+                      - conditions:
+                          - condition: template
+                            value_template: "{{ event_action_key == 'winter' }}"
+                        sequence: !input winter_actions
+                      - conditions:
+                          - condition: template
+                            value_template: "{{ event_action_key == 'new_years_day' }}"
+                        sequence: !input new_years_day_actions
+                      - conditions:
+                          - condition: template
+                            value_template: "{{ event_action_key == 'mlk_day' }}"
+                        sequence: !input mlk_day_actions
+                      - conditions:
+                          - condition: template
+                            value_template: "{{ event_action_key == 'valentines_day' }}"
+                        sequence: !input valentines_day_actions
+                      - conditions:
+                          - condition: template
+                            value_template: "{{ event_action_key == 'presidents_day' }}"
+                        sequence: !input presidents_day_actions
+                      - conditions:
+                          - condition: template
+                            value_template: "{{ event_action_key == 'st_patricks_day' }}"
+                        sequence: !input st_patricks_day_actions
+                      - conditions:
+                          - condition: template
+                            value_template: "{{ event_action_key == 'easter' }}"
+                        sequence: !input easter_actions
+                      - conditions:
+                          - condition: template
+                            value_template: "{{ event_action_key == 'mothers_day' }}"
+                        sequence: !input mothers_day_actions
+                      - conditions:
+                          - condition: template
+                            value_template: "{{ event_action_key == 'memorial_day' }}"
+                        sequence: !input memorial_day_actions
+                      - conditions:
+                          - condition: template
+                            value_template: "{{ event_action_key == 'fathers_day' }}"
+                        sequence: !input fathers_day_actions
+                      - conditions:
+                          - condition: template
+                            value_template: "{{ event_action_key == 'juneteenth' }}"
+                        sequence: !input juneteenth_actions
+                      - conditions:
+                          - condition: template
+                            value_template: "{{ event_action_key == 'independence_day' }}"
+                        sequence: !input independence_day_actions
+                      - conditions:
+                          - condition: template
+                            value_template: "{{ event_action_key == 'labor_day' }}"
+                        sequence: !input labor_day_actions
+                      - conditions:
+                          - condition: template
+                            value_template: "{{ event_action_key == 'halloween' }}"
+                        sequence: !input halloween_actions
+                      - conditions:
+                          - condition: template
+                            value_template: "{{ event_action_key == 'veterans_day' }}"
+                        sequence: !input veterans_day_actions
+                      - conditions:
+                          - condition: template
+                            value_template: "{{ event_action_key == 'thanksgiving' }}"
+                        sequence: !input thanksgiving_actions
+                      - conditions:
+                          - condition: template
+                            value_template: "{{ event_action_key == 'christmas_eve' }}"
+                        sequence: !input christmas_eve_actions
+                      - conditions:
+                          - condition: template
+                            value_template: "{{ event_action_key == 'christmas_day' }}"
+                        sequence: !input christmas_day_actions
+                      - conditions:
+                          - condition: template
+                            value_template: "{{ event_action_key == 'new_years_eve' }}"
+                        sequence: !input new_years_eve_actions
+                      - conditions:
+                          - condition: template
+                            value_template: "{{ event_action_key == 'custom_1' }}"
+                        sequence: !input custom_1_actions
+                      - conditions:
+                          - condition: template
+                            value_template: "{{ event_action_key == 'custom_2' }}"
+                        sequence: !input custom_2_actions
+                      - conditions:
+                          - condition: template
+                            value_template: "{{ event_action_key == 'custom_3' }}"
+                        sequence: !input custom_3_actions
+                      - conditions:
+                          - condition: template
+                            value_template: "{{ event_action_key == 'custom_4' }}"
+                        sequence: !input custom_4_actions
+                      - conditions:
+                          - condition: template
+                            value_template: "{{ event_action_key == 'custom_5' }}"
+                        sequence: !input custom_5_actions
+                      - conditions:
+                          - condition: template
+                            value_template: "{{ event_action_key == 'custom_6' }}"
+                        sequence: !input custom_6_actions
+                      - conditions:
+                          - condition: template
+                            value_template: "{{ event_action_key == 'custom_7' }}"
+                        sequence: !input custom_7_actions
+                      - conditions:
+                          - condition: template
+                            value_template: "{{ event_action_key == 'custom_8' }}"
+                        sequence: !input custom_8_actions
+                      - conditions:
+                          - condition: template
+                            value_template: "{{ event_action_key == 'custom_9' }}"
+                        sequence: !input custom_9_actions
+                      - conditions:
+                          - condition: template
+                            value_template: "{{ event_action_key == 'custom_10' }}"
+                        sequence: !input custom_10_actions
+                      - conditions:
+                          - condition: template
+                            value_template: "{{ event_action_key == 'christmas_rot_1' }}"
+                        sequence: !input christmas_rot_1_actions
+                      - conditions:
+                          - condition: template
+                            value_template: "{{ event_action_key == 'christmas_rot_2' }}"
+                        sequence: !input christmas_rot_2_actions
+                      - conditions:
+                          - condition: template
+                            value_template: "{{ event_action_key == 'christmas_rot_3' }}"
+                        sequence: !input christmas_rot_3_actions
+                      - conditions:
+                          - condition: template
+                            value_template: "{{ event_action_key == 'christmas_rot_4' }}"
+                        sequence: !input christmas_rot_4_actions
+                      - conditions:
+                          - condition: template
+                            value_template: "{{ event_action_key == 'christmas_rot_5' }}"
+                        sequence: !input christmas_rot_5_actions
+                      - conditions:
+                          - condition: template
+                            value_template: "{{ event_action_key == 'christmas_rot_6' }}"
+                        sequence: !input christmas_rot_6_actions
+                      - conditions:
+                          - condition: template
+                            value_template: "{{ event_action_key == 'christmas_rot_7' }}"
+                        sequence: !input christmas_rot_7_actions
+                    default: []
+                  - action: input_text.set_value
+                    target:
+                      entity_id: !input scheduler_state_helper
+                    data:
+                      value: "{{ event_action_key }}"
+                  - choose:
+                      - conditions:
+                          - condition: template
+                            value_template: "{{ debug_logbook }}"
+                        sequence:
+                          - action: logbook.log
+                            data:
+                              name: WLED Scheduler v6.4
+                              message: >-
+                                Applied active event {{ event_action_key }} (window {{ active_window }};
+                                reason: {{ event_apply_reason }}).
+    default:
+      - choose:
+          - conditions:
+              - condition: template
+                value_template: "{{ previous_event_key not in ['off','unknown','unavailable',''] }}"
+            sequence:
+              - sequence: !input shutdown_actions
+              - action: input_text.set_value
+                target:
+                  entity_id: !input scheduler_state_helper
+                data:
+                  value: "off"
+              - choose:
+                  - conditions:
+                      - condition: template
+                        value_template: "{{ debug_logbook }}"
+                    sequence:
+                      - action: logbook.log
+                        data:
+                          name: WLED Scheduler v6.4
+                          message: "Scheduler transitioned to OFF."
