@@ -1,5 +1,5 @@
 blueprint:
-  name: WLED Holiday, Weather & Event Scheduler v6.4.1 Display Activation Windows
+  name: WLED Holiday, Weather & Event Scheduler v6.4.2 Display Activation Windows
   description: >
     Display activation windows with independent fixed, solar, illuminance, or irradiance boundaries. The scheduler decides WHEN and WHICH event is active;
     native Home Assistant action builders decide WHAT every WLED, smart light, scene, switch, script,
@@ -379,6 +379,32 @@ blueprint:
           default: []
           selector:
             condition:
+        skip_day_enabled:
+          name: Skip one chosen day
+          description: >
+            When on, the display stays off for the whole day chosen below, such as trick-or-treat
+            night. If the scheduler is already running when that day arrives, or you turn this on
+            mid-evening, the normal Shutdown actions run. Turn this off in years you want the
+            display on that day.
+          default: false
+          selector:
+            boolean:
+        skip_day_date:
+          name: Day to skip (date)
+          description: >
+            The date to skip. Update it each year. Ignored if a date helper is selected below.
+          default: ''
+          selector:
+            date:
+        skip_day_date_helper:
+          name: Day to skip (date helper, optional)
+          description: >
+            Optional. Select a date-only Date helper to use its date instead of the fixed date
+            above, for example the trick-or-treat date another automation already uses.
+          default: ''
+          selector:
+            entity:
+              domain: input_datetime
 
     weather:
       name: Weather rules
@@ -2595,6 +2621,9 @@ variables:
   startup_actions: !input startup_actions
   shutdown_actions: !input shutdown_actions
   additional_conditions: !input additional_conditions
+  skip_day_enabled: !input skip_day_enabled
+  skip_day_date: !input skip_day_date
+  skip_day_date_helper: !input skip_day_date_helper
   normal_actions: !input normal_actions
   rain_actions: !input rain_actions
   snow_actions: !input snow_actions
@@ -3248,7 +3277,10 @@ action:
            and not in_daily_window
            and weather_override_time_allowed
            and weather_event_key | trim != '' }}
-      should_be_on: "{{ in_daily_window or weather_schedule_override_active }}"
+      skip_day_target: >-
+        {% if skip_day_date_helper | trim != '' %}{{ states(skip_day_date_helper)[:10] }}{% else %}{{ skip_day_date | string }}{% endif %}
+      skip_today: "{{ skip_day_enabled and skip_day_target | trim != '' and skip_day_target | trim == now().date().isoformat() }}"
+      should_be_on: "{{ (in_daily_window or weather_schedule_override_active) and not skip_today }}"
       event_action_key: >-
         {% if weather_schedule_override_active %}{{ weather_event_key }}
         {% elif weather_priority == 'weather' and weather_event_key|trim != '' %}{{ weather_event_key }}
